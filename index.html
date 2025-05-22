@@ -1,13 +1,292 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wielren Schema App</title>
+    <title>Gratis 6 Weken Trainingsschema</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body {
+        background: linear-gradient(to bottom, #6b21a8, #000);
+        min-height: 100vh;
+      }
+    </style>
   </head>
-  <body>
+  <body class="text-white">
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+
+    <script type="text/babel">
+      const { useState } = React;
+
+      function computeTss(blocks, ftp) {
+        let tss = 0;
+        blocks.forEach((b) => {
+          if (b.type === 'interval') {
+            for (let i = 0; i < b.repeats; i++) {
+              tss += (b.minutes / 60) * Math.pow(b.factor, 2) * 100;
+              tss += (b.rest / 60) * Math.pow(b.restFactor, 2) * 100;
+            }
+          } else {
+            tss += (b.minutes / 60) * Math.pow(b.factor, 2) * 100;
+          }
+        });
+        return Math.round(tss);
+      }
+
+      function totalMinutes(blocks) {
+        return blocks.reduce((sum, b) => {
+          if (b.type === 'interval') {
+            return sum + b.repeats * (b.minutes + b.rest);
+          }
+          return sum + b.minutes;
+        }, 0);
+      }
+
+      function scaleBlocks(blocks, target) {
+        const base = totalMinutes(blocks);
+        const ratio = target / base;
+        return blocks.map((b) => {
+          const scaled = { ...b };
+          scaled.minutes = Math.round(b.minutes * ratio);
+          if (b.rest) scaled.rest = Math.round(b.rest * ratio);
+          return scaled;
+        });
+      }
+
+      function generateSchema({ level, days, ftp, hours }) {
+        const plans = {
+          beginner: {
+            endurance: [
+              { type: 'warmup', minutes: 10, factor: 0.55 },
+              { type: 'endurance', minutes: 40, factor: 0.65 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            interval: [
+              { type: 'warmup', minutes: 10, factor: 0.55 },
+              { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            vo2max: [
+              { type: 'warmup', minutes: 10, factor: 0.6 },
+              { type: 'interval', minutes: 3, factor: 1.15, repeats: 6, rest: 3, restFactor: 0.6 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            tempo: [
+              { type: 'warmup', minutes: 10, factor: 0.55 },
+              { type: 'tempo', minutes: 30, factor: 0.85 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            steigerung: [
+              { type: 'warmup', minutes: 10, factor: 0.55 },
+              { type: 'endurance', minutes: 10, factor: 0.65 },
+              { type: 'endurance', minutes: 10, factor: 0.75 },
+              { type: 'endurance', minutes: 10, factor: 0.85 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+          },
+          intermediate: {
+            endurance: [
+              { type: 'warmup', minutes: 10, factor: 0.6 },
+              { type: 'endurance', minutes: 50, factor: 0.7 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            interval: [
+              { type: 'warmup', minutes: 10, factor: 0.6 },
+              { type: 'interval', minutes: 5, factor: 1.05, repeats: 6, rest: 3, restFactor: 0.6 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            vo2max: [
+              { type: 'warmup', minutes: 10, factor: 0.65 },
+              { type: 'interval', minutes: 4, factor: 1.2, repeats: 6, rest: 3, restFactor: 0.6 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            tempo: [
+              { type: 'warmup', minutes: 10, factor: 0.6 },
+              { type: 'tempo', minutes: 40, factor: 0.9 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            steigerung: [
+              { type: 'warmup', minutes: 10, factor: 0.6 },
+              { type: 'endurance', minutes: 10, factor: 0.75 },
+              { type: 'endurance', minutes: 10, factor: 0.85 },
+              { type: 'endurance', minutes: 10, factor: 0.95 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+          },
+          advanced: {
+            endurance: [
+              { type: 'warmup', minutes: 10, factor: 0.65 },
+              { type: 'endurance', minutes: 60, factor: 0.75 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            interval: [
+              { type: 'warmup', minutes: 10, factor: 0.65 },
+              { type: 'interval', minutes: 6, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            vo2max: [
+              { type: 'warmup', minutes: 10, factor: 0.7 },
+              { type: 'interval', minutes: 5, factor: 1.25, repeats: 6, rest: 3, restFactor: 0.6 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            tempo: [
+              { type: 'warmup', minutes: 10, factor: 0.65 },
+              { type: 'tempo', minutes: 50, factor: 0.95 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+            steigerung: [
+              { type: 'warmup', minutes: 10, factor: 0.65 },
+              { type: 'endurance', minutes: 10, factor: 0.8 },
+              { type: 'endurance', minutes: 10, factor: 0.9 },
+              { type: 'endurance', minutes: 10, factor: 1.0 },
+              { type: 'cooldown', minutes: 5, factor: 0.5 },
+            ],
+          },
+        };
+
+        const sessionMinutes = Math.round((hours * 60) / days);
+        const hiSessions = Math.max(1, Math.round(days * 0.2));
+        const hiTypes = ['interval', 'vo2max', 'steigerung', 'tempo'];
+        let hiIndex = 0;
+        const schema = [];
+        for (let week = 1; week <= 6; week++) {
+          let weekTss = 0;
+          for (let d = 1; d <= days; d++) {
+            const high = d <= hiSessions;
+            const type = high ? hiTypes[hiIndex++ % hiTypes.length] : 'endurance';
+            const base = plans[level][type];
+            const blocks = scaleBlocks(base, sessionMinutes);
+            const tss = computeTss(blocks, ftp);
+            weekTss += tss;
+            schema.push({
+              week,
+              day: d,
+              title: type,
+              blocks,
+              tss,
+            });
+          }
+          schema.push({ week, summary: true, tss: weekTss });
+        }
+        return schema;
+      }
+
+      function TrainingIntake({ onComplete }) {
+        const [level, setLevel] = useState('beginner');
+        const [days, setDays] = useState(3);
+        const [ftp, setFtp] = useState('');
+        const [hours, setHours] = useState('');
+        const [email, setEmail] = useState('');
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          const parsedFtp = parseInt(ftp);
+          const parsedHours = parseFloat(hours);
+          if (!email) {
+            alert('E-mailadres is verplicht');
+            return;
+          }
+          onComplete({
+            level,
+            days,
+            hours: isNaN(parsedHours) ? 5 : parsedHours,
+            ftp: isNaN(parsedFtp) ? 200 : parsedFtp,
+            email,
+          });
+        };
+
+        return (
+          <div className="min-h-screen flex items-center justify-center">
+            <form onSubmit={handleSubmit} className="bg-white text-gray-800 p-6 rounded shadow-md w-full max-w-md space-y-4">
+              <h1 className="text-2xl font-bold text-center text-purple-700">Gratis 6 Weken Trainingsschema</h1>
+              <p className="text-center text-sm text-gray-600">Ontvang direct een gepersonaliseerd schema op basis van jouw FTP en beschikbare tijd.</p>
+              <div>
+                <label className="block mb-1">Niveau</label>
+                <select value={level} onChange={(e) => setLevel(e.target.value)} className="w-full border border-gray-300 p-2 rounded">
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Gevorderd</option>
+                  <option value="advanced">Expert</option>
+                </select>
+              </div>
+              <div>
+                <label className="block mb-1">Dagen per week</label>
+                <input type="number" min="1" max="7" value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-full border border-gray-300 p-2 rounded" />
+              </div>
+              <div>
+                <label className="block mb-1">FTP</label>
+                <input type="number" value={ftp} onChange={(e) => setFtp(e.target.value)} className="w-full border border-gray-300 p-2 rounded" />
+              </div>
+              <div>
+                <label className="block mb-1">Uren beschikbaar per week</label>
+                <input type="number" min="1" step="0.5" value={hours} onChange={(e) => setHours(e.target.value)} className="w-full border border-gray-300 p-2 rounded" />
+              </div>
+              <div>
+                <label className="block mb-1">E-mailadres</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full border border-gray-300 p-2 rounded" />
+              </div>
+              <button type="submit" className="w-full bg-purple-700 text-white py-2 rounded hover:bg-purple-800">Genereer Schema</button>
+            </form>
+          </div>
+        );
+      }
+
+      function SchemaView({ intake }) {
+        const schema = generateSchema(intake);
+        const weeks = [];
+        let currentWeek = null;
+        schema.forEach((item) => {
+          if (item.summary) {
+            if (currentWeek) {
+              currentWeek.summary = item.tss;
+              weeks.push(currentWeek);
+              currentWeek = null;
+            }
+          } else {
+            if (!currentWeek) {
+              currentWeek = { week: item.week, days: [] };
+            }
+            currentWeek.days.push(item);
+          }
+        });
+
+        return (
+          <div className="p-6">
+            {weeks.map((w) => (
+              <div key={w.week} className="mb-6 bg-white text-gray-800 p-4 rounded shadow">
+                <h2 className="text-xl font-bold mb-2">Week {w.week} (TSS {w.summary})</h2>
+                <div className="grid gap-4">
+                  {w.days.map((d, i) => (
+                    <div key={i} className="border border-purple-200 rounded p-3">
+                      <h3 className="font-semibold text-purple-700">Dag {d.day}</h3>
+                      <p className="mb-2 capitalize">{d.title}</p>
+                      <ul className="list-disc ml-5 text-sm">
+                        {d.blocks.map((b, j) => (
+                          <li key={j}>
+                            {b.type === 'interval'
+                              ? `${b.repeats}x ${b.minutes} min @ ${Math.round(intake.ftp * b.factor)}w + ${b.rest} min rust`
+                              : `${b.minutes} min @ ${Math.round(intake.ftp * b.factor)}w (${b.type})`}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-1 text-sm text-gray-600">TSS: {d.tss}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      function App() {
+        const [intake, setIntake] = useState(null);
+        return intake ? <SchemaView intake={intake} /> : <TrainingIntake onComplete={setIntake} />;
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
   </body>
 </html>

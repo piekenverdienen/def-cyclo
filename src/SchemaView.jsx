@@ -1,29 +1,130 @@
 function generateSchema({ level, days, ftp }) {
   const planByLevel = {
     beginner: [
-      { type: 'warmup', minutes: 10, factor: 0.55 },
-      { type: 'endurance', minutes: 30, factor: 0.65 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
+      {
+        title: 'Endurance Ride',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'endurance', minutes: 30, factor: 0.65 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Tempo Ride',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'tempo', minutes: 20, factor: 0.75 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Sprint Session',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'sprint', minutes: 0.5, factor: 1.2, repeats: 6, rest: 1.5, restFactor: 0.5 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Threshold Intervals',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'threshold', minutes: 8, factor: 0.9, repeats: 3, rest: 4, restFactor: 0.6 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
     ],
     intermediate: [
-      { type: 'warmup', minutes: 10, factor: 0.6 },
-      { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
+      {
+        title: 'Endurance Ride',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'endurance', minutes: 40, factor: 0.7 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Tempo Ride',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'tempo', minutes: 30, factor: 0.8 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Sprint Session',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'sprint', minutes: 0.5, factor: 1.3, repeats: 8, rest: 1.5, restFactor: 0.5 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Threshold Intervals',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'threshold', minutes: 10, factor: 0.95, repeats: 4, rest: 4, restFactor: 0.6 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
     ],
     advanced: [
-      { type: 'warmup', minutes: 10, factor: 0.65 },
-      { type: 'interval', minutes: 6, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
+      {
+        title: 'Endurance Ride',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'endurance', minutes: 50, factor: 0.75 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Tempo Ride',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'tempo', minutes: 40, factor: 0.85 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Sprint Session',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'sprint', minutes: 0.5, factor: 1.4, repeats: 10, rest: 1, restFactor: 0.55 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      {
+        title: 'Threshold Intervals',
+        blocks: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'threshold', minutes: 12, factor: 1.0, repeats: 4, rest: 3, restFactor: 0.65 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
     ],
   };
 
   const schema = [];
+  const templates = planByLevel[level];
   for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
+    const template = templates[i % templates.length];
+    const week = Math.floor(i / templates.length);
+
+    const blocks = template.blocks.map((b) => {
+      if (typeof b.repeats === 'number') {
+        return {
+          ...b,
+          repeats: b.repeats + week,
+          rest: Math.max(1, b.rest - week * 0.5),
+        };
+      }
+      return { ...b };
+    });
+
     schema.push({
       day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
+      title: template.title,
+      blocks,
     });
   }
   return schema;
@@ -33,7 +134,7 @@ function generateTcxWorkout(title, blocks, ftp) {
   const steps = [];
 
   blocks.forEach((block, index) => {
-    if (block.type === 'interval') {
+    if (typeof block.repeats === 'number') {
       for (let i = 0; i < block.repeats; i++) {
         steps.push({
           name: `Interval ${i + 1}`,
@@ -109,7 +210,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
               <ul className="list-disc ml-5 text-gray-600">
                 {item.blocks.map((b, i) => (
                   <li key={i}>
-                    {b.type === 'interval'
+                    {typeof b.repeats === 'number'
                       ? `${b.repeats}x ${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt + ${b.rest} min rust @ ${Math.round(intake.ftp * b.restFactor)} watt`
                       : `${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt (${b.type})`}
                   </li>

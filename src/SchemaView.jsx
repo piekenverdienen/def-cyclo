@@ -1,31 +1,81 @@
-function generateSchema({ level, days, ftp }) {
-  const planByLevel = {
-    beginner: [
-      { type: 'warmup', minutes: 10, factor: 0.55 },
-      { type: 'endurance', minutes: 30, factor: 0.65 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    intermediate: [
-      { type: 'warmup', minutes: 10, factor: 0.6 },
-      { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    advanced: [
-      { type: 'warmup', minutes: 10, factor: 0.65 },
-      { type: 'interval', minutes: 6, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
+function totalMinutes(blocks) {
+  return blocks.reduce((sum, b) => {
+    if (b.type === 'interval') {
+      return sum + b.repeats * (b.minutes + b.rest);
+    }
+    return sum + b.minutes;
+  }, 0);
+}
+
+function scaleBlocks(blocks, target) {
+  const base = totalMinutes(blocks);
+  const ratio = target / base;
+  return blocks.map((b) => {
+    const scaled = { ...b };
+    scaled.minutes = Math.round(b.minutes * ratio);
+    if (b.rest) scaled.rest = Math.round(b.rest * ratio);
+    return scaled;
+  });
+}
+
+function generateSchema({ level, days, ftp, hours }) {
+  const plans = {
+    beginner: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 40, factor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    intermediate: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'endurance', minutes: 50, factor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 5, factor: 1.05, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    advanced: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'endurance', minutes: 60, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 6, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
   };
 
+  const sessionMinutes = Math.round((hours * 60) / days);
+  const hiSessions = Math.max(1, Math.round(days * 0.2));
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+
+  for (let week = 1; week <= 6; week++) {
+    for (let d = 1; d <= days; d++) {
+      const highIntensity = d <= hiSessions;
+      const type = highIntensity ? 'interval' : 'endurance';
+      const base = plans[level][type];
+      const blocks = scaleBlocks(base, sessionMinutes);
+      schema.push({
+        day: `Week ${week} - Dag ${d}`,
+        title: highIntensity ? 'Intensieve training' : 'Duurtraining',
+        blocks,
+      });
+    }
   }
+
   return schema;
 }
 
@@ -98,7 +148,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Uren/week: <strong>{intake.hours}</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">

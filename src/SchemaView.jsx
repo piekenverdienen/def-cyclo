@@ -1,30 +1,103 @@
-function generateSchema({ level, days, ftp }) {
+function generateSchema({ level, days, minutes }) {
   const planByLevel = {
     beginner: [
-      { type: 'warmup', minutes: 10, factor: 0.55 },
-      { type: 'endurance', minutes: 30, factor: 0.65 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
+      [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 25, factor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'tempo', minutes: 15, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 3, factor: 0.9, repeats: 4, rest: 2, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
     ],
     intermediate: [
-      { type: 'warmup', minutes: 10, factor: 0.6 },
-      { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
+      [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'endurance', minutes: 35, factor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 4, factor: 1.0, repeats: 5, rest: 3, restFactor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'tempo', minutes: 20, factor: 0.8 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
     ],
     advanced: [
-      { type: 'warmup', minutes: 10, factor: 0.65 },
-      { type: 'interval', minutes: 6, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
+      [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'endurance', minutes: 40, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 5, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'tempo', minutes: 25, factor: 0.85 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
     ],
   };
 
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+  const weeks = 6;
+  const workouts = planByLevel[level];
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < days; d++) {
+      const template = workouts[d % workouts.length];
+      const durationScale = 1 + w * 0.1;
+      const intensityScale = 1 + w * 0.02;
+
+      const scaled = template.map((b) => {
+        const obj = { ...b };
+        obj.factor = parseFloat((b.factor * intensityScale).toFixed(2));
+        if (b.repeats) {
+          obj.minutes = Math.round(b.minutes * durationScale);
+          obj.rest = Math.round(b.rest * durationScale);
+          obj.restFactor = parseFloat((b.restFactor * intensityScale).toFixed(2));
+        } else {
+          obj.minutes = Math.round(b.minutes * durationScale);
+        }
+        return obj;
+      });
+
+      const total = scaled.reduce(
+        (t, b) =>
+          t + b.minutes * (b.repeats ? b.repeats : 1) + (b.rest ? b.rest * (b.repeats || 0) : 0),
+        0
+      );
+      const ratio = minutes ? minutes / total : 1;
+      const blocks = scaled.map((b) => {
+        if (b.repeats) {
+          return {
+            ...b,
+            minutes: Math.max(1, Math.round(b.minutes * ratio)),
+            rest: Math.max(1, Math.round(b.rest * ratio)),
+          };
+        }
+        return { ...b, minutes: Math.max(1, Math.round(b.minutes * ratio)) };
+      });
+
+      schema.push({
+        day: `Week ${w + 1} - Dag ${d + 1}`,
+        title: `Training ${d + 1}`,
+        blocks,
+      });
+    }
   }
   return schema;
 }
@@ -94,16 +167,19 @@ export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
+    <div className="min-h-screen p-6">
+      <div className="max-w-3xl mx-auto bg-white/90 shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
           Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
+        <p className="text-gray-600">
+          E-mail: <strong>{intake.email}</strong> · Minuten per training: <strong>{intake.minutes}</strong>
+        </p>
 
         <div className="grid gap-4">
           {schema.map((item, index) => (
-            <div key={index} className="bg-blue-50 p-4 rounded shadow-sm border border-blue-200">
+            <div key={index} className="bg-blue-50/60 p-4 rounded shadow-sm border border-blue-200">
               <h2 className="text-xl font-semibold text-blue-800">{item.day}</h2>
               <p className="text-gray-700 mb-2">Trainingsvorm: <strong>{item.title}</strong></p>
               <ul className="list-disc ml-5 text-gray-600">
@@ -117,7 +193,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
               </ul>
               <button
                 onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
-                className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                className="mt-3 inline-block bg-gradient-to-r from-purple-600 to-black text-white px-4 py-2 rounded hover:from-purple-700 hover:to-gray-900"
               >
                 Download .TCX
               </button>
@@ -129,7 +205,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
           <label className="block text-gray-700 font-medium mb-1">Update je FTP:</label>
           <input
             type="number"
-            className="w-full border border-gray-300 p-2 rounded"
+            className="w-full border border-gray-300 p-2 rounded bg-white/70"
             placeholder="Nieuwe FTP"
             onChange={(e) => onUpdateFtp(parseInt(e.target.value))}
           />

@@ -5,9 +5,309 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wielren Schema App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+  <body class="min-h-screen bg-gradient-to-b from-purple-700 via-purple-900 to-black text-white">
+    <div id="root" class="p-4"></div>
+    <script type="text/babel">
+
+const { useState } = React;
+
+function App() {
+  const [step, setStep] = useState(1);
+  const [intake, setIntake] = useState({
+    email: '',
+    level: 'beginner',
+    days: 3,
+    ftp: '',
+    hours: ''
+  });
+
+  const handleEmail = (e) => {
+    e.preventDefault();
+    if (!intake.email) return;
+    setStep(2);
+  };
+
+  const handleDetails = (e) => {
+    e.preventDefault();
+    const ftp = parseInt(intake.ftp);
+    const hours = parseFloat(intake.hours);
+    if (isNaN(ftp) || isNaN(hours)) {
+      alert('Vul zowel FTP als uren per week in');
+      return;
+    }
+    setIntake({ ...intake, ftp, hours });
+    setStep(3);
+  };
+
+  if (step === 1) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <form onSubmit={handleEmail} className="bg-white/20 backdrop-blur-md p-6 rounded-lg space-y-4 max-w-md w-full">
+          <h1 className="text-2xl font-bold text-center">Gratis 6 Weken Trainingsschema</h1>
+          <p className="text-sm text-center">Laat je e-mailadres achter voor toegang tot jouw persoonlijke schema.</p>
+          <input type="email" value={intake.email} onChange={(e)=>setIntake({...intake, email:e.target.value})} required placeholder="E-mail" className="w-full p-2 rounded bg-white/90 text-gray-800" />
+          <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded">Volgende</button>
+        </form>
+      </div>
+    );
+  }
+
+  if (step === 2) {
+    const [showInfo, setShowInfo] = useState(false);
+    const info = {
+      beginner: 'Beginner: gericht op basisconditie',
+      intermediate: 'Gevorderd: regelmatige trainingsbelasting',
+      advanced: 'Expert: ervaren renner met hoge belasting'
+    };
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <form onSubmit={handleDetails} className="bg-white/20 backdrop-blur-md p-6 rounded-lg space-y-4 max-w-md w-full">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Jouw Gegevens</h2>
+            <button type="button" onClick={()=>setShowInfo(!showInfo)} className="text-sm text-purple-200">ℹ️</button>
+          </div>
+          {showInfo && <p className="text-xs">{info[intake.level]}</p>}
+          <label className="block text-sm">Niveau
+            <select value={intake.level} onChange={e=>setIntake({...intake, level:e.target.value})} className="mt-1 p-2 rounded w-full text-gray-800">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Gevorderd</option>
+              <option value="advanced">Expert</option>
+            </select>
+          </label>
+          <label className="block text-sm">Dagen per week
+            <input type="number" min="1" max="7" value={intake.days} onChange={e=>setIntake({...intake, days:Number(e.target.value)})} className="mt-1 p-2 rounded w-full text-gray-800" />
+          </label>
+          <label className="block text-sm">FTP
+            <input type="number" value={intake.ftp} onChange={e=>setIntake({...intake, ftp:e.target.value})} className="mt-1 p-2 rounded w-full text-gray-800" />
+          </label>
+          <label className="block text-sm">Uren per week
+            <input type="number" step="0.5" value={intake.hours} onChange={e=>setIntake({...intake, hours:e.target.value})} className="mt-1 p-2 rounded w-full text-gray-800" />
+          </label>
+          <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded">Genereer schema</button>
+        </form>
+      </div>
+    );
+  }
+
+  return <Schedule intake={intake} />;
+}
+
+function totalMinutes(blocks) {
+  return blocks.reduce((sum, b) => {
+    if (b.type === 'interval') return sum + b.repeats * (b.minutes + b.rest);
+    return sum + b.minutes;
+  }, 0);
+}
+
+function scaleBlocks(blocks, target) {
+  const ratio = target / totalMinutes(blocks);
+  return blocks.map(b => {
+    const n = { ...b };
+    n.minutes = Math.round(b.minutes * ratio);
+    if (b.rest) n.rest = Math.round(b.rest * ratio);
+    return n;
+  });
+}
+
+function computeTss(blocks) {
+  let total = 0;
+  blocks.forEach(b => {
+    if (b.type === 'interval') {
+      for (let i = 0; i < b.repeats; i++) {
+        total += (b.minutes / 60) * (b.factor ** 2) * 100;
+        total += (b.rest / 60) * (b.restFactor ** 2) * 100;
+      }
+    } else {
+      total += (b.minutes / 60) * (b.factor ** 2) * 100;
+    }
+  });
+  return Math.round(total);
+}
+
+function generateSchema({ level, days, ftp, hours }) {
+  const plans = {
+    beginner: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 40, factor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'tempo', minutes: 20, factor: 0.9 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'steigerung', minutes: 15, factor: 1.0 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 2, factor: 1.2, repeats: 6, rest: 2, restFactor: 0.55 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ]
+    },
+    intermediate: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'endurance', minutes: 50, factor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 5, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'tempo', minutes: 25, factor: 0.92 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'steigerung', minutes: 20, factor: 1.05 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 3, factor: 1.2, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ]
+    },
+    advanced: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'endurance', minutes: 60, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 6, factor: 1.15, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'tempo', minutes: 30, factor: 0.95 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'steigerung', minutes: 25, factor: 1.1 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 3, factor: 1.3, repeats: 7, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 }
+      ]
+    }
+  };
+
+  const totalMinutes = hours * 60;
+  const hiMinutes = Math.round(totalMinutes * 0.2);
+  const loMinutes = totalMinutes - hiMinutes;
+  const hiSessions = Math.max(1, Math.round(days / 3));
+  const loSessions = days - hiSessions;
+  const hiSessionMinutes = Math.round(hiMinutes / hiSessions);
+  const loSessionMinutes = Math.round(loMinutes / Math.max(loSessions,1));
+  const hiTypes = ['interval', 'vo2max', 'steigerung', 'tempo'];
+  const schema = [];
+  for (let week = 1; week <= 6; week++) {
+    let weekTss = 0;
+    for (let d = 1; d <= days; d++) {
+      const high = d <= hiSessions;
+      const type = high ? hiTypes[(week + d) % hiTypes.length] : 'endurance';
+      const base = plans[level][type];
+      const minutes = high ? hiSessionMinutes : loSessionMinutes;
+      const blocks = scaleBlocks(base, minutes);
+      const tss = computeTss(blocks);
+      weekTss += tss;
+      schema.push({ week, day: `Week ${week} - Dag ${d}`, type, blocks, tss });
+    }
+    schema.push({ summary: true, week, tss: weekTss });
+  }
+  return schema;
+}
+
+function generateTcx(title, blocks, ftp) {
+  let idx = 0;
+  const steps = [];
+  blocks.forEach(b => {
+    if (b.type === 'interval') {
+      for (let i = 0; i < b.repeats; i++) {
+        steps.push({ name: `Interval ${i+1}`, sec: b.minutes * 60, low: Math.round(ftp * b.factor * 0.95), high: Math.round(ftp * b.factor * 1.05) });
+        steps.push({ name: `Rust ${i+1}`, sec: b.rest * 60, low: Math.round(ftp * b.restFactor * 0.95), high: Math.round(ftp * b.restFactor * 1.05) });
+      }
+    } else {
+      steps.push({ name: b.type.charAt(0).toUpperCase()+b.type.slice(1), sec: b.minutes * 60, low: Math.round(ftp * b.factor * 0.95), high: Math.round(ftp * b.factor * 1.05) });
+    }
+  });
+  const xmlSteps = steps.map(s => `<WorkoutStep><StepId>${idx++}</StepId><Name>${s.name}</Name><Duration><DurationType>Time</DurationType><Seconds>${s.sec}</Seconds></Duration><Target><TargetType>Power</TargetType><CustomTargetValueLow>${s.low}</CustomTargetValueLow><CustomTargetValueHigh>${s.high}</CustomTargetValueHigh></Target></WorkoutStep>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"><Workouts><Workout Sport="Biking"><Name>${title}</Name>${xmlSteps}</Workout></Workouts></TrainingCenterDatabase>`;
+}
+
+function downloadTcx(title, blocks, ftp) {
+  const xml = generateTcx(title, blocks, ftp);
+  const blob = new Blob([xml], { type: 'application/xml' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = title.replace(/\s+/g, '_') + '.tcx';
+  link.click();
+}
+
+function Schedule({ intake }) {
+  const schema = generateSchema(intake);
+  const weeks = [];
+  let current = 0;
+  schema.forEach(item => {
+    if (item.summary) {
+      weeks.push({ week: item.week, days: [], tss: item.tss });
+      current = weeks.length - 1;
+    } else {
+      if (!weeks[current]) weeks[current] = { week: item.week, days: [], tss: 0 };
+      weeks[current].days.push(item);
+    }
+  });
+
+  return (
+    <div className="p-4 space-y-8">
+      {weeks.map((week, wi) => (
+        <div key={wi} className="bg-white/10 p-4 rounded-lg">
+          <h3 className="text-xl font-bold mb-2">Week {week.week}</h3>
+          <ul className="space-y-2">
+            {week.days.map((d, di) => (
+              <li key={di} className="bg-white/20 p-2 rounded">
+                <div className="font-semibold">{d.day} ({d.type})</div>
+                <ul className="list-disc ml-5 text-sm">
+                  {d.blocks.map((b, bi) => (
+                    <li key={bi}>{b.type === 'interval' ? `${b.repeats}x${b.minutes}m @${Math.round(intake.ftp*b.factor)}w + ${b.rest}m rust` : `${b.minutes}m ${b.type} @${Math.round(intake.ftp*b.factor)}w`}</li>
+                  ))}
+                </ul>
+                <div className="text-sm mt-1">TSS: {d.tss}</div>
+                <button onClick={()=>downloadTcx(d.day, d.blocks, intake.ftp)} className="mt-1 text-purple-200 underline">Download TCX</button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 font-semibold">Week TSS: {week.tss}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+
+    </script>
   </body>
 </html>

@@ -4,11 +4,24 @@ export default function TrainingIntake({ onComplete }) {
   const [level, setLevel] = useState('beginner');
   const [days, setDays] = useState(3);
   const [ftp, setFtp] = useState('');
+  const [hours, setHours] = useState('');
+  const [email, setEmail] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const parsedFtp = parseInt(ftp);
-    onComplete({ level, days, ftp: isNaN(parsedFtp) ? 200 : parsedFtp });
+    const parsedHours = parseFloat(hours);
+    if (!email) {
+      alert('E-mailadres is verplicht');
+      return;
+    }
+    onComplete({
+      level,
+      days,
+      hours: isNaN(parsedHours) ? 5 : parsedHours,
+      ftp: isNaN(parsedFtp) ? 200 : parsedFtp,
+      email,
+    });
   };
 
   return (
@@ -51,6 +64,29 @@ export default function TrainingIntake({ onComplete }) {
             value={ftp}
             onChange={(e) => setFtp(e.target.value)}
             className="w-full border border-gray-300 p-2 rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block text-gray-600 mb-1">Uren beschikbaar per week:</label>
+          <input
+            type="number"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+            className="w-full border border-gray-300 p-2 rounded"
+            min="1"
+            step="0.5"
+          />
+        </div>
+
+        <div>
+          <label className="block text-gray-600 mb-1">E-mailadres:</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full border border-gray-300 p-2 rounded"
+            required
           />
         </div>
 

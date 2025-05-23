@@ -1,13 +1,347 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wielren Schema App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wielren Schema App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-purple-800 to-black text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    function TrainingIntake({ onComplete }) {
+      const [step, setStep] = useState(1);
+      const [email, setEmail] = useState('');
+      const [level, setLevel] = useState('beginner');
+      const [days, setDays] = useState(3);
+      const [ftp, setFtp] = useState('');
+      const [hours, setHours] = useState('');
+
+      const handleEmail = (e) => {
+        e.preventDefault();
+        if (!email) {
+          alert('E-mailadres is verplicht');
+          return;
+        }
+        setStep(2);
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onComplete({
+          email,
+          level,
+          days: parseInt(days),
+          ftp: parseInt(ftp) || 200,
+          hours: parseFloat(hours) || 5,
+        });
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center py-10">
+          {step === 1 && (
+            <form onSubmit={handleEmail} className="bg-white text-gray-800 p-8 rounded shadow-md w-full max-w-md space-y-6">
+              <h1 className="text-3xl font-bold text-center text-purple-700">Gratis 6 Weken Trainingsschema</h1>
+              <p className="text-center text-sm">Laat je e-mailadres achter voor gratis toegang</p>
+              <div>
+                <label className="block mb-1">E-mailadres</label>
+                <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full p-2 border rounded" />
+              </div>
+              <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700">Volgende</button>
+            </form>
+          )}
+          {step === 2 && (
+            <form onSubmit={handleSubmit} className="bg-white text-gray-800 p-8 rounded shadow-md w-full max-w-md space-y-4">
+              <h2 className="text-2xl font-bold text-center text-purple-700">Vul je gegevens in</h2>
+              <div>
+                <label className="block mb-1">Niveau</label>
+                <select value={level} onChange={(e)=>setLevel(e.target.value)} className="w-full p-2 border rounded">
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Gevorderd</option>
+                  <option value="advanced">Expert</option>
+                </select>
+              </div>
+              <div>
+                <label className="block mb-1">Dagen per week</label>
+                <input type="number" min="1" max="7" value={days} onChange={(e)=>setDays(e.target.value)} className="w-full p-2 border rounded" />
+              </div>
+              <div>
+                <label className="block mb-1">FTP</label>
+                <input type="number" value={ftp} onChange={(e)=>setFtp(e.target.value)} className="w-full p-2 border rounded" />
+              </div>
+              <div>
+                <label className="block mb-1">Uren per week beschikbaar</label>
+                <input type="number" min="1" step="0.5" value={hours} onChange={(e)=>setHours(e.target.value)} className="w-full p-2 border rounded" />
+              </div>
+              <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700">Schema genereren</button>
+            </form>
+          )}
+        </div>
+      );
+    }
+
+    function totalMinutes(blocks) {
+      return blocks.reduce((sum, b) => {
+        if (b.type === 'interval') return sum + b.repeats * (b.minutes + b.rest);
+        return sum + b.minutes;
+      }, 0);
+    }
+
+    function scaleBlocks(blocks, target) {
+      const base = totalMinutes(blocks);
+      const ratio = target / base;
+      return blocks.map((b) => {
+        const scaled = { ...b };
+        scaled.minutes = Math.round(b.minutes * ratio);
+        if (b.rest) scaled.rest = Math.round(b.rest * ratio);
+        return scaled;
+      });
+    }
+
+    function computeTss(blocks, ftp) {
+      let tss = 0;
+      blocks.forEach((b) => {
+        if (b.type === 'interval') {
+          for (let i = 0; i < b.repeats; i++) {
+            tss += (b.minutes / 60) * Math.pow(b.factor, 2) * 100;
+            tss += (b.rest / 60) * Math.pow(b.restFactor, 2) * 100;
+          }
+        } else {
+          tss += (b.minutes / 60) * Math.pow(b.factor, 2) * 100;
+        }
+      });
+      return Math.round(tss);
+    }
+
+    function generateSchema({ level, days, ftp, hours }) {
+      const plans = {
+        beginner: {
+          endurance: [
+            { type: 'warmup', minutes: 10, factor: 0.55 },
+            { type: 'endurance', minutes: 40, factor: 0.65 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          tempo: [
+            { type: 'warmup', minutes: 10, factor: 0.55 },
+            { type: 'tempo', minutes: 20, factor: 0.85 },
+            { type: 'endurance', minutes: 15, factor: 0.7 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          steigerung: [
+            { type: 'warmup', minutes: 10, factor: 0.55 },
+            { type: 'steigerung', minutes: 20, factor: 0.6, endFactor: 1.0 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          vo2max: [
+            { type: 'warmup', minutes: 10, factor: 0.6 },
+            { type: 'interval', minutes: 3, factor: 1.15, repeats: 5, rest: 3, restFactor: 0.55 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          interval: [
+            { type: 'warmup', minutes: 10, factor: 0.55 },
+            { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+        },
+        intermediate: {
+          endurance: [
+            { type: 'warmup', minutes: 10, factor: 0.6 },
+            { type: 'endurance', minutes: 50, factor: 0.7 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          tempo: [
+            { type: 'warmup', minutes: 10, factor: 0.6 },
+            { type: 'tempo', minutes: 25, factor: 0.9 },
+            { type: 'endurance', minutes: 15, factor: 0.7 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          steigerung: [
+            { type: 'warmup', minutes: 10, factor: 0.6 },
+            { type: 'steigerung', minutes: 25, factor: 0.7, endFactor: 1.05 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          vo2max: [
+            { type: 'warmup', minutes: 10, factor: 0.6 },
+            { type: 'interval', minutes: 3, factor: 1.2, repeats: 6, rest: 3, restFactor: 0.6 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          interval: [
+            { type: 'warmup', minutes: 10, factor: 0.6 },
+            { type: 'interval', minutes: 5, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+        },
+        advanced: {
+          endurance: [
+            { type: 'warmup', minutes: 10, factor: 0.65 },
+            { type: 'endurance', minutes: 60, factor: 0.75 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          tempo: [
+            { type: 'warmup', minutes: 10, factor: 0.65 },
+            { type: 'tempo', minutes: 30, factor: 0.95 },
+            { type: 'endurance', minutes: 15, factor: 0.75 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          steigerung: [
+            { type: 'warmup', minutes: 10, factor: 0.65 },
+            { type: 'steigerung', minutes: 30, factor: 0.75, endFactor: 1.1 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          vo2max: [
+            { type: 'warmup', minutes: 10, factor: 0.65 },
+            { type: 'interval', minutes: 3, factor: 1.25, repeats: 7, rest: 3, restFactor: 0.65 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+          interval: [
+            { type: 'warmup', minutes: 10, factor: 0.65 },
+            { type: 'interval', minutes: 6, factor: 1.15, repeats: 6, rest: 3, restFactor: 0.65 },
+            { type: 'cooldown', minutes: 5, factor: 0.5 },
+          ],
+        },
+      };
+
+      const hiTypes = ['interval', 'vo2max', 'steigerung', 'tempo'];
+      const weekMultipliers = [1, 1.1, 0.9, 1.2, 1, 0.8];
+      const schema = [];
+
+      for (let week = 0; week < 6; week++) {
+        const weekHours = hours * weekMultipliers[week % weekMultipliers.length];
+        const totalMinutesWeek = weekHours * 60;
+        const hiMinutesWeek = totalMinutesWeek * 0.2;
+        const hiSessions = Math.max(1, Math.round(days * 0.2));
+        const hiMinutes = hiMinutesWeek / hiSessions;
+        const lowMinutes = (totalMinutesWeek - hiMinutesWeek) / (days - hiSessions);
+        for (let d = 0; d < days; d++) {
+          const high = d < hiSessions;
+          const type = high ? hiTypes[(week + d) % hiTypes.length] : 'endurance';
+          const base = plans[level][type];
+          const target = Math.round(high ? hiMinutes : lowMinutes);
+          const blocks = scaleBlocks(base, target);
+          const tss = computeTss(blocks, ftp);
+          schema.push({
+            week: week + 1,
+            day: `Week ${week + 1} - Dag ${d + 1}`,
+            title: type.charAt(0).toUpperCase() + type.slice(1),
+            blocks,
+            tss,
+          });
+        }
+      }
+      return schema;
+    }
+
+    function generateFit(intake, session) {
+      function crc16(bytes) {
+        let crc = 0;
+        for (let b of bytes) {
+          crc ^= b;
+          for (let i = 0; i < 8; i++) {
+            if (crc & 1) crc = (crc >> 1) ^ 0xA001;
+            else crc >>= 1;
+          }
+        }
+        return crc;
+      }
+
+      const bytes = [];
+      const push = (...vals) => vals.forEach(v => bytes.push(v & 0xFF));
+      const pushString = (str, len) => { for (let i=0;i<len;i++) push(str.charCodeAt(i) || 0); };
+
+      // File ID definition & data
+      push(0x40); push(0,0); push(0,0); push(5);
+      push(0,2,0); push(1,2,0); push(2,2,0); push(3,4,0); push(4,4,0);
+      push(0x00); push(4); push(0xff,0xff); push(1,0); push(0,0,0,0); push(0,0,0,0);
+
+      // Workout definition & data
+      push(0x41); push(0,0); push(26,0); push(3);
+      push(0,2,0); push(1,4,0); push(2,2,0);
+      push(0x01); push(6); push(0,0,0,0); push(session.blocks.length & 0xFF, session.blocks.length>>8);
+
+      // Workout step definition
+      push(0x42); push(0,0); push(27,0); push(6);
+      push(0,2,0); push(1,2,0); push(2,4,0); push(3,2,0); push(4,2,0); push(5,1,0);
+      let idx = 0;
+      session.blocks.forEach(b => {
+        if(b.type === 'interval') {
+          for(let i=0;i<b.repeats;i++) {
+            push(0x02); push(idx&0xFF, idx>>8); idx++;
+            push(0); const dur=b.minutes*60; push(dur&0xFF,(dur>>8)&0xFF,(dur>>16)&0xFF,(dur>>24)&0xFF);
+            push(0); const pow=Math.round(intake.ftp*b.factor); push(pow&0xFF,pow>>8); push(1);
+            push(0x02); push(idx&0xFF, idx>>8); idx++;
+            push(0); const rdur=b.rest*60; push(rdur&0xFF,(rdur>>8)&0xFF,(rdur>>16)&0xFF,(rdur>>24)&0xFF);
+            push(0); const rpow=Math.round(intake.ftp*b.restFactor); push(rpow&0xFF,rpow>>8); push(1);
+          }
+        } else {
+          push(0x02); push(idx&0xFF, idx>>8); idx++;
+          push(0); const dur=b.minutes*60; push(dur&0xFF,(dur>>8)&0xFF,(dur>>16)&0xFF,(dur>>24)&0xFF);
+          push(0); const pow=Math.round(intake.ftp*(b.endFactor||b.factor)); push(pow&0xFF,pow>>8); push(b.type==='cooldown'?2:1);
+        }
+      });
+
+      const dataSize = bytes.length;
+      const header = [14,0x10,0,0,dataSize&0xFF,(dataSize>>8)&0xFF,(dataSize>>16)&0xFF,(dataSize>>24)&0xFF,46,70,73,84,0,0];
+      const hcrc = crc16(header.slice(0,12)); header[12]=hcrc&0xFF; header[13]=hcrc>>8;
+      const fcrc = crc16(bytes); bytes.push(fcrc&0xFF,fcrc>>8);
+      return new Uint8Array([...header,...bytes]);
+    }
+
+    function downloadFit(intake, session) {
+      const data = generateFit(intake, session);
+      const blob = new Blob([data], { type: 'application/octet-stream' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${session.day.replace(/\s+/g, '_')}.fit`;
+      link.click();
+    }
+
+    function SchemaView({ intake }) {
+      const schema = useMemo(() => generateSchema(intake), [intake]);
+      const weeks = [];
+      schema.forEach((s) => {
+        if (!weeks[s.week - 1]) weeks[s.week - 1] = { sessions: [], tss: 0 };
+        weeks[s.week - 1].sessions.push(s);
+        weeks[s.week - 1].tss += s.tss;
+      });
+      return (
+        <div className="p-4 max-w-4xl mx-auto space-y-6">
+          {weeks.map((w, i) => (
+            <div key={i} className="bg-white text-gray-800 rounded shadow p-4 space-y-4">
+              <h2 className="text-xl font-bold text-purple-700">Week {i + 1} - Totale TSS: {Math.round(w.tss)}</h2>
+              {w.sessions.map((sess, j) => (
+                <div key={j} className="border border-purple-200 p-3 rounded">
+                  <h3 className="font-semibold text-purple-800">{sess.day} ({sess.title})</h3>
+                  <ul className="list-disc ml-5 text-sm text-gray-700">
+                    {sess.blocks.map((b, k) => (
+                      <li key={k}>
+                        {b.type === 'interval'
+                          ? `${b.repeats}x ${b.minutes}min @ ${Math.round(intake.ftp*b.factor)}w + ${b.rest}min rust`
+                          : `${b.minutes}min @ ${Math.round(intake.ftp*(b.endFactor||b.factor))}w (${b.type})`}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-sm mt-1">TSS: {sess.tss}</p>
+                  <button onClick={() => downloadFit(intake, sess)} className="mt-2 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700">Download .FIT</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function App() {
+      const [intake, setIntake] = useState(null);
+      return intake ? <SchemaView intake={intake} /> : <TrainingIntake onComplete={setIntake} />;
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
 </html>

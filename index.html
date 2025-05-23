@@ -1,13 +1,178 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wielren Schema App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wielren Schema</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <div class="container">
+    <form id="step1">
+      <h2>Stap 1: e-mail</h2>
+      <input type="email" id="email" required>
+      <button type="submit">Volgende</button>
+    </form>
+
+    <form id="step2" class="hidden">
+      <h2>Stap 2: gegevens</h2>
+      <label>Niveau
+        <select id="level">
+          <option value="beginner">Beginner</option>
+          <option value="intermediate">Gevorderd</option>
+          <option value="advanced">Expert</option>
+        </select>
+      </label>
+      <label>Dagen per week
+        <input type="number" id="days" min="1" max="7" value="3">
+      </label>
+      <label>Beschikbare tijd (u/week)
+        <input type="number" id="time" min="1" value="5">
+      </label>
+      <label>FTP (watt)
+        <input type="number" id="ftp" required>
+      </label>
+      <label>Gewicht (kg)
+        <input type="number" id="weight" required>
+      </label>
+      <p id="error" class="error hidden"></p>
+      <button type="submit">Genereer schema</button>
+    </form>
+
+    <div id="schema" class="hidden"></div>
+  </div>
+
+<script>
+const step1 = document.getElementById('step1');
+const step2 = document.getElementById('step2');
+const schemaDiv = document.getElementById('schema');
+const errorP = document.getElementById('error');
+let intake = {};
+
+step1.addEventListener('submit', function(e) {
+  e.preventDefault();
+  intake.email = document.getElementById('email').value;
+  step1.classList.add('hidden');
+  step2.classList.remove('hidden');
+});
+
+step2.addEventListener('submit', function(e) {
+  e.preventDefault();
+  intake.level = document.getElementById('level').value;
+  intake.days = parseInt(document.getElementById('days').value);
+  intake.time = parseInt(document.getElementById('time').value);
+  intake.ftp = parseInt(document.getElementById('ftp').value);
+  intake.weight = parseFloat(document.getElementById('weight').value);
+  if (intake.weight > 0 && intake.ftp / intake.weight > 5) {
+    errorP.textContent = 'FTP per kg lijkt erg hoog';
+    errorP.classList.remove('hidden');
+    return;
+  }
+  errorP.classList.add('hidden');
+  step2.classList.add('hidden');
+  generateSchemaView();
+});
+
+function generateSchema(intake) {
+  const planByLevel = {
+    beginner: [
+      { type: 'warmup', minutes: 10, factor: 0.55 },
+      { type: 'endurance', minutes: 30, factor: 0.65 },
+      { type: 'cooldown', minutes: 5, factor: 0.5 }
+    ],
+    intermediate: [
+      { type: 'warmup', minutes: 10, factor: 0.6 },
+      { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
+      { type: 'cooldown', minutes: 5, factor: 0.5 }
+    ],
+    advanced: [
+      { type: 'warmup', minutes: 10, factor: 0.65 },
+      { type: 'interval', minutes: 6, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.6 },
+      { type: 'cooldown', minutes: 5, factor: 0.5 }
+    ]
+  };
+  const schema = [];
+  for (let i=0; i<intake.days; i++) {
+    schema.push({
+      day: 'Dag ' + (i+1),
+      title: 'Trainingsblok ' + (i+1),
+      blocks: planByLevel[intake.level]
+    });
+  }
+  return schema;
+}
+
+function generateTcxWorkout(title, blocks, ftp) {
+  const steps = [];
+  blocks.forEach(function(block){
+    if(block.type === 'interval') {
+      for(let i=0; i<block.repeats; i++) {
+        steps.push({name: 'Interval ' + (i+1), duration: block.minutes*60, power: Math.round(ftp*block.factor)});
+        steps.push({name: 'Rust ' + (i+1), duration: block.rest*60, power: Math.round(ftp*block.restFactor)});
+      }
+    } else {
+      steps.push({name: block.type, duration: block.minutes*60, power: Math.round(ftp*block.factor)});
+    }
+  });
+  const xmlSteps = steps.map(function(s){
+    return `<Step><Name>${s.name}</Name><Duration><DurationType>Time</DurationType><Seconds>${s.duration}</Seconds></Duration><Target><TargetType>Power</TargetType><PowerZone>${s.power}</PowerZone></Target></Step>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"><Workouts><Workout Sport="Biking"><Name>${title}</Name>${xmlSteps}</Workout></Workouts></TrainingCenterDatabase>`;
+}
+
+function downloadTcx(title, blocks, ftp) {
+  const xml = generateTcxWorkout(title, blocks, ftp);
+  const blob = new Blob([xml], {type:'application/xml'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = title.replace(/\s+/g,'_') + '.tcx';
+  link.click();
+}
+
+function downloadFit(title, blocks, ftp) {
+  const lines = ['Workout: ' + title];
+  blocks.forEach(function(b){
+    if(b.type === 'interval') {
+      for(let i=0;i<b.repeats;i++){
+        lines.push(`Interval ${i+1}: ${b.minutes}m @ ${Math.round(ftp*b.factor)}w + ${b.rest}m rust @ ${Math.round(ftp*b.restFactor)}w`);
+      }
+    } else {
+      lines.push(`${b.type}: ${b.minutes}m @ ${Math.round(ftp*b.factor)}w`);
+    }
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = title.replace(/\s+/g,'_') + '.fit';
+  link.click();
+}
+
+function generateSchemaView() {
+  const schema = generateSchema(intake);
+  const header = `<h2>Schema voor ${intake.email}</h2><p>Niveau: <strong>${intake.level}</strong> · Dagen/week: <strong>${intake.days}</strong> · Tijd: <strong>${intake.time}u</strong> · Gewicht: <strong>${intake.weight} kg</strong> · FTP: <strong>${intake.ftp} W</strong></p>`;
+  schemaDiv.innerHTML = header;
+  schema.forEach(function(item){
+    const div = document.createElement('div');
+    div.className = 'card';
+    const list = item.blocks.map(function(b){
+      return b.type === 'interval'
+        ? `${b.repeats}x ${b.minutes} min @ ${Math.round(intake.ftp*b.factor)}w + ${b.rest} min rust @ ${Math.round(intake.ftp*b.restFactor)}w`
+        : `${b.minutes} min @ ${Math.round(intake.ftp*b.factor)}w (${b.type})`;
+    }).map(function(t){return '<li>'+t+'</li>'}).join('');
+    div.innerHTML = `<h3>${item.day}</h3><ul>${list}</ul>`;
+    const tcxBtn = document.createElement('button');
+    tcxBtn.textContent = 'Download .TCX';
+    tcxBtn.addEventListener('click', function(){ downloadTcx(item.title, item.blocks, intake.ftp); });
+    const fitBtn = document.createElement('button');
+    fitBtn.textContent = 'Download .FIT';
+    fitBtn.style.marginLeft = '0.5rem';
+    fitBtn.addEventListener('click', function(){ downloadFit(item.title, item.blocks, intake.ftp); });
+    div.appendChild(tcxBtn);
+    div.appendChild(fitBtn);
+    schemaDiv.appendChild(div);
+  });
+  schemaDiv.classList.remove('hidden');
+}
+</script>
+</body>
 </html>

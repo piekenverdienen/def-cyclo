@@ -18,75 +18,60 @@ function generateSchema({ level, days, ftp }) {
   };
 
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+  for (let w = 0; w < 6; w++) {
+    for (let d = 0; d < days; d++) {
+      const baseBlocks = planByLevel[level];
+      schema.push({
+        day: `Week ${w + 1} - Dag ${d + 1}`,
+        title: `Training ${w * days + d + 1}`,
+        blocks: baseBlocks,
+      });
+    }
   }
   return schema;
 }
 
-function generateTcxWorkout(title, blocks, ftp) {
-  const steps = [];
-
-  blocks.forEach((block, index) => {
-    if (block.type === 'interval') {
-      for (let i = 0; i < block.repeats; i++) {
-        steps.push({
-          name: `Interval ${i + 1}`,
-          duration: block.minutes * 60,
-          power: Math.round(ftp * block.factor),
-        });
-        steps.push({
-          name: `Rust ${i + 1}`,
-          duration: block.rest * 60,
-          power: Math.round(ftp * block.restFactor),
-        });
+function crc16(buf) {
+  let crc = 0;
+  for (let b of buf) {
+    crc ^= b;
+    for (let i = 0; i < 8; i++) {
+      if (crc & 1) {
+        crc = (crc >> 1) ^ 0xA001;
+      } else {
+        crc >>= 1;
       }
-    } else {
-      steps.push({
-        name: block.type.charAt(0).toUpperCase() + block.type.slice(1),
-        duration: block.minutes * 60,
-        power: Math.round(ftp * block.factor),
-      });
     }
-  });
-
-  const xmlSteps = steps.map(
-    (s, i) => `
-      <Step>
-        <Name>${s.name}</Name>
-        <Duration>
-          <DurationType>Time</DurationType>
-          <Seconds>${s.duration}</Seconds>
-        </Duration>
-        <Target>
-          <TargetType>Power</TargetType>
-          <PowerZone>${s.power}</PowerZone>
-        </Target>
-      </Step>`
-  ).join('');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
-  <Workouts>
-    <Workout Sport="Biking">
-      <Name>${title}</Name>
-      ${xmlSteps}
-    </Workout>
-  </Workouts>
-</TrainingCenterDatabase>`;
+  }
+  return crc;
 }
 
-function downloadTcx(title, blocks, ftp) {
-  const xml = generateTcxWorkout(title, blocks, ftp);
-  const blob = new Blob([xml], { type: 'application/xml' });
+function generateFitWorkout() {
+  const header = new Uint8Array(14);
+  header[0] = 14; // header size
+  header[1] = 0x10; // protocol version 1.0
+  header[2] = 0; // profile version low byte
+  header[3] = 0; // profile version high byte
+  header[4] = 0; // data size bytes 0-3 all zero (no data)
+  header[5] = 0;
+  header[6] = 0;
+  header[7] = 0;
+  header[8] = 0x2e; // '.'
+  header[9] = 0x46; // 'F'
+  header[10] = 0x49; // 'I'
+  header[11] = 0x54; // 'T'
+  const crc = crc16(header.slice(0, 12));
+  header[12] = crc & 0xff;
+  header[13] = (crc >> 8) & 0xff;
+  return header;
+}
+
+function downloadFit(title) {
+  const bytes = generateFitWorkout();
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = `${title.replace(/\s+/g, '_')}.tcx`;
+  link.download = `${title.replace(/\s+/g, '_')}.fit`;
   link.click();
 }
 
@@ -98,7 +83,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">
@@ -116,10 +101,10 @@ export default function SchemaView({ intake, onUpdateFtp }) {
                 ))}
               </ul>
               <button
-                onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
+                onClick={() => downloadFit(item.title)}
                 className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
               >
-                Download .TCX
+                Download .FIT
               </button>
             </div>
           ))}

@@ -1,13 +1,335 @@
-
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wielren Schema App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wielren Schema App</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-purple-700 via-purple-900 to-black text-white">
+  <div id="root" class="p-4"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    function LevelInfo() {
+      const [open, setOpen] = useState(false);
+      return (
+        <div className="relative inline-block ml-2">
+          <button type="button" onClick={() => setOpen(!open)} className="w-5 h-5 flex items-center justify-center border border-purple-200 text-purple-200 rounded-full text-xs">i</button>
+          {open && (
+            <div className="absolute z-10 mt-2 w-56 text-gray-800 text-sm bg-white p-3 rounded shadow">
+              <p><strong>Beginner:</strong> minder dan een jaar ervaring.</p>
+              <p className="mt-1"><strong>Gevorderd:</strong> rijdt wekelijks en heeft al wat basisconditie.</p>
+              <p className="mt-1"><strong>Expert:</strong> traint gericht en zoekt extra uitdaging.</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function TrainingIntake({ onComplete }) {
+      const [step, setStep] = useState(1);
+      const [email, setEmail] = useState('');
+      const [level, setLevel] = useState('beginner');
+      const [days, setDays] = useState(3);
+      const [ftp, setFtp] = useState('');
+      const [hours, setHours] = useState('');
+
+      const handleEmail = (e) => {
+        e.preventDefault();
+        if (!email) return alert('E-mailadres is verplicht');
+        setStep(2);
+      };
+
+      const handleDetails = (e) => {
+        e.preventDefault();
+        const parsedFtp = parseInt(ftp);
+        const parsedHours = parseFloat(hours);
+        onComplete({
+          email,
+          level,
+          days,
+          ftp: isNaN(parsedFtp) ? 200 : parsedFtp,
+          hours: isNaN(parsedHours) ? 5 : parsedHours,
+        });
+      };
+
+      if (step === 1) {
+        return (
+          <form onSubmit={handleEmail} className="max-w-md mx-auto bg-white text-gray-800 p-6 rounded shadow">
+            <h1 className="text-2xl font-bold mb-2 text-center">Gratis 6 Weken Trainingsschema</h1>
+            <p className="text-center mb-4">Laat je e-mailadres achter om toegang te krijgen.</p>
+            <label className="block mb-2">E-mailadres
+              <input type="email" className="w-full mt-1 p-2 border rounded" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </label>
+            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded">Volgende</button>
+          </form>
+        );
+      }
+
+      return (
+        <form onSubmit={handleDetails} className="max-w-md mx-auto bg-white text-gray-800 p-6 rounded shadow space-y-4">
+          <div>
+            <label className="block mb-1">Niveau <LevelInfo /></label>
+            <select value={level} onChange={(e) => setLevel(e.target.value)} className="w-full p-2 border rounded text-gray-800">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Gevorderd</option>
+              <option value="advanced">Expert</option>
+            </select>
+          </div>
+          <div>
+            <label className="block mb-1">Dagen per week</label>
+            <input type="number" min="1" max="7" value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-full p-2 border rounded" />
+          </div>
+          <div>
+            <label className="block mb-1">FTP</label>
+            <input type="number" value={ftp} onChange={(e) => setFtp(e.target.value)} className="w-full p-2 border rounded" />
+          </div>
+          <div>
+            <label className="block mb-1">Uren beschikbaar per week</label>
+            <input type="number" min="1" step="0.5" value={hours} onChange={(e) => setHours(e.target.value)} className="w-full p-2 border rounded" />
+          </div>
+          <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded">Genereer schema</button>
+        </form>
+      );
+    }
+
+    function totalMinutes(blocks) {
+      return blocks.reduce((sum, b) => {
+        if (b.type === 'interval') {
+          return sum + b.repeats * (b.minutes + b.rest);
+        }
+        return sum + b.minutes;
+      }, 0);
+    }
+
+    function scaleBlocks(blocks, target) {
+      const base = totalMinutes(blocks);
+      const ratio = target / base;
+      return blocks.map((b) => {
+        const s = { ...b };
+        s.minutes = Math.round(b.minutes * ratio);
+        if (b.rest) s.rest = Math.round(b.rest * ratio);
+        return s;
+      });
+    }
+
+    function computeTss(blocks) {
+      let tss = 0;
+      blocks.forEach((b) => {
+        if (b.type === 'interval') {
+          for (let i = 0; i < b.repeats; i++) {
+            tss += (b.minutes / 60) * b.factor * b.factor * 100;
+            tss += (b.rest / 60) * b.restFactor * b.restFactor * 100;
+          }
+        } else {
+          tss += (b.minutes / 60) * b.factor * b.factor * 100;
+        }
+      });
+      return Math.round(tss);
+    }
+
+    const plans = {
+      beginner: {
+        endurance: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'endurance', minutes: 40, factor: 0.65 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        interval: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        tempo: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'tempo', minutes: 15, factor: 0.85 },
+          { type: 'endurance', minutes: 20, factor: 0.65 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        steigerung: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'steigerung', minutes: 1, factor: 0.6, repeats: 6, rest: 1, restFactor: 0.55 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        vo2max: [
+          { type: 'warmup', minutes: 10, factor: 0.55 },
+          { type: 'interval', minutes: 3, factor: 1.15, repeats: 5, rest: 3, restFactor: 0.55 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      intermediate: {
+        endurance: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'endurance', minutes: 50, factor: 0.7 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        interval: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'interval', minutes: 5, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        tempo: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'tempo', minutes: 20, factor: 0.9 },
+          { type: 'endurance', minutes: 25, factor: 0.7 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        steigerung: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'steigerung', minutes: 1, factor: 0.65, repeats: 7, rest: 1, restFactor: 0.55 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        vo2max: [
+          { type: 'warmup', minutes: 10, factor: 0.6 },
+          { type: 'interval', minutes: 4, factor: 1.2, repeats: 5, rest: 3, restFactor: 0.6 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+      advanced: {
+        endurance: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'endurance', minutes: 60, factor: 0.75 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        interval: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'interval', minutes: 6, factor: 1.15, repeats: 6, rest: 3, restFactor: 0.6 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        tempo: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'tempo', minutes: 25, factor: 0.95 },
+          { type: 'endurance', minutes: 25, factor: 0.75 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        steigerung: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'steigerung', minutes: 1, factor: 0.7, repeats: 8, rest: 1, restFactor: 0.55 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+        vo2max: [
+          { type: 'warmup', minutes: 10, factor: 0.65 },
+          { type: 'interval', minutes: 5, factor: 1.25, repeats: 5, rest: 3, restFactor: 0.6 },
+          { type: 'cooldown', minutes: 5, factor: 0.5 },
+        ],
+      },
+    };
+
+    function generateSchema({ level, days, hours, ftp }) {
+      const sessionMinutes = Math.round((hours * 60) / days);
+      const hiSessions = Math.max(1, Math.round(days * 0.2));
+      const hiTypes = ['interval', 'vo2max', 'steigerung', 'tempo'];
+      const weeks = [];
+
+      for (let week = 1; week <= 6; week++) {
+        const sessions = [];
+        const hiType = hiTypes[(week - 1) % hiTypes.length];
+        for (let d = 1; d <= days; d++) {
+          const highIntensity = d <= hiSessions;
+          const type = highIntensity ? hiType : 'endurance';
+          const base = plans[level][type];
+          const blocks = scaleBlocks(base, sessionMinutes);
+          const tss = computeTss(blocks);
+          sessions.push({ day: d, type, title: type, blocks, tss });
+        }
+        const weekTss = sessions.reduce((s, w) => s + w.tss, 0);
+        weeks.push({ week, sessions, weekTss });
+      }
+      return weeks;
+    }
+
+    function generateTcxWorkout(title, blocks, ftp) {
+      const steps = [];
+      blocks.forEach((b) => {
+        if (b.type === 'interval') {
+          for (let i = 0; i < b.repeats; i++) {
+            steps.push({ name: `Interval ${i + 1}`, duration: b.minutes * 60, factor: b.factor, intensity: 'Active' });
+            steps.push({ name: `Rust ${i + 1}`, duration: b.rest * 60, factor: b.restFactor, intensity: 'Resting' });
+          }
+        } else if (b.type === 'steigerung') {
+          for (let i = 0; i < b.repeats; i++) {
+            steps.push({ name: `Steigerung ${i + 1}`, duration: b.minutes * 60, factor: b.factor + i * 0.05, intensity: 'Active' });
+            steps.push({ name: `Rust ${i + 1}`, duration: b.rest * 60, factor: b.restFactor, intensity: 'Resting' });
+          }
+        } else {
+          steps.push({ name: b.type, duration: b.minutes * 60, factor: b.factor, intensity: 'Active' });
+        }
+      });
+
+      const xmlSteps = steps.map((s, i) => `
+        <WorkoutStep>
+          <StepId>${i + 1}</StepId>
+          <Name>${s.name}</Name>
+          <Duration>
+            <DurationType>Time</DurationType>
+            <Seconds>${s.duration}</Seconds>
+          </Duration>
+          <Target>
+            <TargetType>Power</TargetType>
+            <CustomTargetValueLow>${Math.round(ftp * s.factor * 0.95)}</CustomTargetValueLow>
+            <CustomTargetValueHigh>${Math.round(ftp * s.factor * 1.05)}</CustomTargetValueHigh>
+          </Target>
+          <Intensity>${s.intensity}</Intensity>
+        </WorkoutStep>`).join('');
+
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+  <Workouts>
+    <Workout Sport="Biking">
+      <Name>${title}</Name>
+      ${xmlSteps}
+    </Workout>
+  </Workouts>
+</TrainingCenterDatabase>`;
+    }
+
+    function downloadTcx(title, blocks, ftp) {
+      const xml = generateTcxWorkout(title, blocks, ftp);
+      const blob = new Blob([xml], { type: 'application/xml' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${title.replace(/\s+/g, '_')}.tcx`;
+      link.click();
+    }
+
+    function SchemaView({ intake }) {
+      const weeks = generateSchema(intake);
+      return (
+        <div className="max-w-3xl mx-auto text-gray-200">
+          {weeks.map((w) => (
+            <div key={w.week} className="mb-8 bg-white/10 p-4 rounded">
+              <h2 className="text-xl font-semibold mb-2 text-purple-200">Week {w.week} – totaal TSS: {w.weekTss}</h2>
+              {w.sessions.map((s, idx) => (
+                <div key={idx} className="mb-4 p-3 bg-black/20 rounded">
+                  <h3 className="font-semibold">Dag {s.day}: {s.title}</h3>
+                  <ul className="list-disc ml-5 text-sm">
+                    {s.blocks.map((b, i) => (
+                      <li key={i}>
+                        {b.type === 'interval' ? `${b.repeats}x ${b.minutes}m @ ${(b.factor*100).toFixed(0)}% FTP met ${b.rest}m rust` : b.type === 'steigerung' ? `${b.repeats}x ${b.minutes}m steigerend met ${b.rest}m rust` : `${b.minutes}m @ ${(b.factor*100).toFixed(0)}% FTP (${b.type})`}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-sm">TSS: {s.tss}</p>
+                  <button onClick={() => downloadTcx(`Week${w.week}_Dag${s.day}`, s.blocks, intake.ftp)} className="mt-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">Download .TCX</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function App() {
+      const [intake, setIntake] = useState(null);
+      return intake ? <SchemaView intake={intake} /> : <TrainingIntake onComplete={setIntake} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
 </html>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import InfoTooltip from './InfoTooltip.jsx';
 
 export default function TrainingIntake({ onComplete }) {
   const [level, setLevel] = useState('beginner');
@@ -45,7 +46,11 @@ export default function TrainingIntake({ onComplete }) {
         </div>
 
         <div>
-          <label className="block text-gray-600 mb-1">FTP:</label>
+          <label className="block text-gray-600 mb-1 flex items-center">
+            FTP
+            <InfoTooltip title="Functional Threshold Power (FTP) is het maximale vermogen dat je een uur kunt volhouden." />
+            :
+          </label>
           <input
             type="number"
             value={ftp}

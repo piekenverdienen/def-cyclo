@@ -1,4 +1,4 @@
-function generateSchema({ level, days, ftp }) {
+function generateSchema({ level, days, ftp, availableTime }) {
   const planByLevel = {
     beginner: [
       { type: 'warmup', minutes: 10, factor: 0.55 },
@@ -98,7 +98,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Tijd/week: <strong>{intake.availableTime} u</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">

@@ -1,31 +1,149 @@
-function generateSchema({ level, days, ftp }) {
-  const planByLevel = {
-    beginner: [
-      { type: 'warmup', minutes: 10, factor: 0.55 },
-      { type: 'endurance', minutes: 30, factor: 0.65 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    intermediate: [
-      { type: 'warmup', minutes: 10, factor: 0.6 },
-      { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    advanced: [
-      { type: 'warmup', minutes: 10, factor: 0.65 },
-      { type: 'interval', minutes: 6, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
+function totalMinutes(blocks) {
+  return blocks.reduce((sum, b) => {
+    if (b.type === 'interval') {
+      return sum + b.repeats * (b.minutes + b.rest);
+    }
+    return sum + b.minutes;
+  }, 0);
+}
+
+function scaleBlocks(blocks, target) {
+  const base = totalMinutes(blocks);
+  const ratio = target / base;
+  return blocks.map((b) => {
+    const scaled = { ...b };
+    scaled.minutes = Math.round(b.minutes * ratio);
+    if (b.rest) scaled.rest = Math.round(b.rest * ratio);
+    return scaled;
+  });
+}
+
+function blockTss(block) {
+  if (block.type === 'interval') {
+    const work = (block.minutes / 60) * Math.pow(block.factor, 2) * 100;
+    const rest = (block.rest / 60) * Math.pow(block.restFactor, 2) * 100;
+    return block.repeats * (work + rest);
+  }
+  return (block.minutes / 60) * Math.pow(block.factor, 2) * 100;
+}
+
+function sessionTss(blocks) {
+  return Math.round(blocks.reduce((sum, b) => sum + blockTss(b), 0));
+}
+
+function generateSchema({ level, days, ftp, hours }) {
+  const plans = {
+    beginner: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 40, factor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 20, factor: 0.85 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 3, factor: 0.75, repeats: 3, rest: 1, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 2, factor: 1.2, repeats: 5, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    intermediate: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'endurance', minutes: 50, factor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 5, factor: 1.05, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'endurance', minutes: 25, factor: 0.88 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 4, factor: 0.8, repeats: 4, rest: 1, restFactor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 3, factor: 1.2, repeats: 5, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    advanced: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'endurance', minutes: 60, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 6, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'endurance', minutes: 30, factor: 0.9 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 5, factor: 0.85, repeats: 4, rest: 1, restFactor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 3, factor: 1.25, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
   };
 
+  const sessionMinutes = Math.round((hours * 60) / days);
+  const hiSessions = Math.max(1, Math.round(days * 0.2));
+  const hiTypes = ['interval', 'vo2max', 'steigerung', 'tempo'];
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+
+  for (let week = 1; week <= 6; week++) {
+    const sessions = [];
+    for (let d = 1; d <= days; d++) {
+      const highIntensity = d <= hiSessions;
+      let type = 'endurance';
+      if (highIntensity) {
+        const idx = (week + d) % hiTypes.length;
+        type = hiTypes[idx];
+      }
+      const base = plans[level][type];
+      const blocks = scaleBlocks(base, sessionMinutes);
+      sessions.push({
+        week,
+        day: d,
+        title: type.charAt(0).toUpperCase() + type.slice(1),
+        blocks,
+        tss: sessionTss(blocks),
+      });
+    }
+    const weekTss = sessions.reduce((s, b) => s + b.tss, 0);
+    schema.push({ week, sessions, weekTss });
   }
+
   return schema;
 }
 
@@ -91,36 +209,43 @@ function downloadTcx(title, blocks, ftp) {
 }
 
 export default function SchemaView({ intake, onUpdateFtp }) {
-  const schema = generateSchema(intake);
+  const weeks = generateSchema(intake);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gradient-to-b from-purple-700 to-black p-6">
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Uren/week: <strong>{intake.hours}</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
-        <div className="grid gap-4">
-          {schema.map((item, index) => (
-            <div key={index} className="bg-blue-50 p-4 rounded shadow-sm border border-blue-200">
-              <h2 className="text-xl font-semibold text-blue-800">{item.day}</h2>
-              <p className="text-gray-700 mb-2">Trainingsvorm: <strong>{item.title}</strong></p>
-              <ul className="list-disc ml-5 text-gray-600">
-                {item.blocks.map((b, i) => (
-                  <li key={i}>
-                    {b.type === 'interval'
-                      ? `${b.repeats}x ${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt + ${b.rest} min rust @ ${Math.round(intake.ftp * b.restFactor)} watt`
-                      : `${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt (${b.type})`}
-                  </li>
+        <div className="space-y-8">
+          {weeks.map((week) => (
+            <div key={week.week} className="space-y-4">
+              <h2 className="text-2xl font-semibold text-purple-800">Week {week.week} – TSS {week.weekTss}</h2>
+              <div className="grid gap-4">
+                {week.sessions.map((item, index) => (
+                  <div key={index} className="bg-purple-50 p-4 rounded shadow-sm border border-purple-200">
+                    <h3 className="text-xl font-semibold text-purple-800">Dag {item.day}: {item.title}</h3>
+                    <p className="text-gray-700 mb-2">Sessie TSS: {item.tss}</p>
+                    <ul className="list-disc ml-5 text-gray-600">
+                      {item.blocks.map((b, i) => (
+                        <li key={i}>
+                          {b.type === 'interval'
+                            ? `${b.repeats}x ${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt + ${b.rest} min rust @ ${Math.round(intake.ftp * b.restFactor)} watt`
+                            : `${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt (${b.type})`}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
+                      className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                    >
+                      Download .TCX
+                    </button>
+                  </div>
                 ))}
-              </ul>
-              <button
-                onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
-                className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Download .TCX
-              </button>
+              </div>
             </div>
           ))}
         </div>
@@ -129,7 +254,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
           <label className="block text-gray-700 font-medium mb-1">Update je FTP:</label>
           <input
             type="number"
-            className="w-full border border-gray-300 p-2 rounded"
+            className="w-full border border-purple-300 p-2 rounded"
             placeholder="Nieuwe FTP"
             onChange={(e) => onUpdateFtp(parseInt(e.target.value))}
           />

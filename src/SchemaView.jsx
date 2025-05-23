@@ -1,49 +1,116 @@
-function generateSchema({ level, days, ftp }) {
-  const planByLevel = {
-    beginner: [
-      { type: 'warmup', minutes: 10, factor: 0.55 },
-      { type: 'endurance', minutes: 30, factor: 0.65 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    intermediate: [
-      { type: 'warmup', minutes: 10, factor: 0.6 },
-      { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    advanced: [
-      { type: 'warmup', minutes: 10, factor: 0.65 },
-      { type: 'interval', minutes: 6, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
+function totalMinutes(blocks) {
+  return blocks.reduce((sum, b) => {
+    if (b.type === 'interval') {
+      return sum + b.repeats * (b.minutes + b.rest);
+    }
+    return sum + b.minutes;
+  }, 0);
+}
+
+function scaleBlocks(blocks, target) {
+  const base = totalMinutes(blocks);
+  const ratio = target / base;
+  return blocks.map((b) => {
+    const scaled = { ...b };
+    scaled.minutes = Math.round(b.minutes * ratio);
+    if (b.rest) scaled.rest = Math.round(b.rest * ratio);
+    return scaled;
+  });
+}
+
+function computeTss(blocks, ftp) {
+  let tss = 0;
+  blocks.forEach((b) => {
+    if (b.type === 'interval') {
+      for (let i = 0; i < b.repeats; i++) {
+        tss += ((b.minutes / 60) * Math.pow(b.factor, 2)) * 100;
+        tss += ((b.rest / 60) * Math.pow(b.restFactor, 2)) * 100;
+      }
+    } else {
+      tss += ((b.minutes / 60) * Math.pow(b.factor, 2)) * 100;
+    }
+  });
+  return Math.round(tss);
+}
+
+function generateSchema({ level, days, ftp, hours }) {
+  const plans = {
+    beginner: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 40, factor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    intermediate: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'endurance', minutes: 50, factor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 5, factor: 1.05, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    advanced: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'endurance', minutes: 60, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 6, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
   };
 
+  const sessionMinutes = Math.round((hours * 60) / days);
+  const hiSessions = Math.max(1, Math.round(days * 0.2));
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+
+  for (let week = 1; week <= 6; week++) {
+    for (let d = 1; d <= days; d++) {
+      const highIntensity = d <= hiSessions;
+      const type = highIntensity ? 'interval' : 'endurance';
+      const base = plans[level][type];
+      const blocks = scaleBlocks(base, sessionMinutes);
+      schema.push({
+        day: `Week ${week} - Dag ${d}`,
+        title: highIntensity ? 'Intensieve training' : 'Duurtraining',
+        blocks,
+      });
+    }
   }
+
   return schema;
 }
 
 function generateTcxWorkout(title, blocks, ftp) {
   const steps = [];
 
-  blocks.forEach((block, index) => {
+  blocks.forEach((block) => {
     if (block.type === 'interval') {
       for (let i = 0; i < block.repeats; i++) {
         steps.push({
           name: `Interval ${i + 1}`,
           duration: block.minutes * 60,
           power: Math.round(ftp * block.factor),
+          intensity: 'Active',
         });
         steps.push({
           name: `Rust ${i + 1}`,
           duration: block.rest * 60,
           power: Math.round(ftp * block.restFactor),
+          intensity: 'Resting',
         });
       }
     } else {
@@ -51,31 +118,37 @@ function generateTcxWorkout(title, blocks, ftp) {
         name: block.type.charAt(0).toUpperCase() + block.type.slice(1),
         duration: block.minutes * 60,
         power: Math.round(ftp * block.factor),
+        intensity: 'Active',
       });
     }
   });
 
-  const xmlSteps = steps.map(
-    (s, i) => `
-      <Step>
-        <Name>${s.name}</Name>
-        <Duration>
-          <DurationType>Time</DurationType>
-          <Seconds>${s.duration}</Seconds>
-        </Duration>
-        <Target>
-          <TargetType>Power</TargetType>
-          <PowerZone>${s.power}</PowerZone>
-        </Target>
-      </Step>`
-  ).join('');
+  const xmlSteps = steps
+    .map(
+      (s, i) => `
+        <Step>
+          <StepId>${i + 1}</StepId>
+          <Name>${s.name}</Name>
+          <Duration xsi:type="Time_t">
+            <Seconds>${s.duration}</Seconds>
+          </Duration>
+          <Intensity>${s.intensity}</Intensity>
+          <Target xsi:type="PowerZone_t">
+            <PowerZoneHigh>${s.power}</PowerZoneHigh>
+            <PowerZoneLow>${s.power}</PowerZoneLow>
+          </Target>
+        </Step>`
+    )
+    .join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <Workouts>
     <Workout Sport="Biking">
       <Name>${title}</Name>
-      ${xmlSteps}
+      <Steps>
+${xmlSteps}
+      </Steps>
     </Workout>
   </Workouts>
 </TrainingCenterDatabase>`;
@@ -91,21 +164,33 @@ function downloadTcx(title, blocks, ftp) {
 }
 
 export default function SchemaView({ intake, onUpdateFtp }) {
-  const schema = generateSchema(intake);
+  const schema = generateSchema(intake).map((s) => ({
+    ...s,
+    tss: computeTss(s.blocks, intake.ftp),
+  }));
+
+  const weeklyTotals = {};
+  schema.forEach((s) => {
+    const match = s.day.match(/Week (\d+)/);
+    const week = match ? match[1] : '1';
+    weeklyTotals[week] = (weeklyTotals[week] || 0) + s.tss;
+  });
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Uren/week: <strong>{intake.hours}</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">
           {schema.map((item, index) => (
             <div key={index} className="bg-blue-50 p-4 rounded shadow-sm border border-blue-200">
               <h2 className="text-xl font-semibold text-blue-800">{item.day}</h2>
-              <p className="text-gray-700 mb-2">Trainingsvorm: <strong>{item.title}</strong></p>
+              <p className="text-gray-700 mb-2">
+                Trainingsvorm: <strong>{item.title}</strong> · TSS: <strong>{item.tss}</strong>
+              </p>
               <ul className="list-disc ml-5 text-gray-600">
                 {item.blocks.map((b, i) => (
                   <li key={i}>
@@ -123,6 +208,15 @@ export default function SchemaView({ intake, onUpdateFtp }) {
               </button>
             </div>
           ))}
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 mt-4">Week totaal TSS</h2>
+          <ul className="list-disc ml-5 text-gray-700">
+            {Object.entries(weeklyTotals).map(([week, total]) => (
+              <li key={week}>Week {week}: {Math.round(total)} TSS</li>
+            ))}
+          </ul>
         </div>
 
         <div className="pt-4">

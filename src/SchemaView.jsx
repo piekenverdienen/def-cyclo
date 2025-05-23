@@ -1,32 +1,165 @@
-function generateSchema({ level, days, ftp }) {
-  const planByLevel = {
-    beginner: [
-      { type: 'warmup', minutes: 10, factor: 0.55 },
-      { type: 'endurance', minutes: 30, factor: 0.65 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    intermediate: [
-      { type: 'warmup', minutes: 10, factor: 0.6 },
-      { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
-    advanced: [
-      { type: 'warmup', minutes: 10, factor: 0.65 },
-      { type: 'interval', minutes: 6, factor: 1.1, repeats: 5, rest: 3, restFactor: 0.6 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
+function totalMinutes(blocks) {
+  return blocks.reduce((sum, b) => {
+    if (b.type === 'interval') {
+      return sum + b.repeats * (b.minutes + b.rest);
+    }
+    return sum + b.minutes;
+  }, 0);
+}
+
+function scaleBlocks(blocks, target) {
+  const base = totalMinutes(blocks);
+  const ratio = target / base;
+  return blocks.map((b) => {
+    const scaled = { ...b };
+    scaled.minutes = Math.round(b.minutes * ratio);
+    if (b.rest) scaled.rest = Math.round(b.rest * ratio);
+    return scaled;
+  });
+}
+
+function computeTss(blocks, ftp) {
+  let tss = 0;
+  blocks.forEach((b) => {
+    if (b.type === 'interval') {
+      for (let i = 0; i < b.repeats; i++) {
+        const dur = b.minutes / 60;
+        const restDur = b.rest / 60;
+        tss += dur * Math.pow(b.factor, 2) * 100;
+        tss += restDur * Math.pow(b.restFactor, 2) * 100;
+      }
+    } else {
+      const dur = b.minutes / 60;
+      tss += dur * Math.pow(b.factor, 2) * 100;
+    }
+  });
+  return Math.round(tss);
+}
+
+function generateSchema({ level, days, ftp, hours }) {
+  const plans = {
+    beginner: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 40, factor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'tempo', minutes: 20, factor: 0.9 },
+        { type: 'endurance', minutes: 15, factor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 1, factor: 0.85, repeats: 5, rest: 1, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 3, factor: 1.15, repeats: 5, rest: 3, restFactor: 0.55 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'interval', minutes: 4, factor: 1.05, repeats: 5, rest: 3, restFactor: 0.55 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    intermediate: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'endurance', minutes: 50, factor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'tempo', minutes: 25, factor: 0.92 },
+        { type: 'endurance', minutes: 15, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 1, factor: 0.9, repeats: 6, rest: 1, restFactor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 4, factor: 1.2, repeats: 5, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.6 },
+        { type: 'interval', minutes: 5, factor: 1.05, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
+    advanced: {
+      endurance: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'endurance', minutes: 60, factor: 0.75 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      tempo: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'tempo', minutes: 30, factor: 0.95 },
+        { type: 'endurance', minutes: 20, factor: 0.8 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      steigerung: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 1, factor: 0.95, repeats: 8, rest: 1, restFactor: 0.7 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      vo2max: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 4, factor: 1.25, repeats: 6, rest: 3, restFactor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+      interval: [
+        { type: 'warmup', minutes: 10, factor: 0.65 },
+        { type: 'interval', minutes: 6, factor: 1.1, repeats: 6, rest: 3, restFactor: 0.6 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
+    },
   };
 
-  const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+  const weekMultipliers = [1, 1.1, 0.8, 1.2, 0.9, 1.1];
+  const hiTypes = ['interval', 'vo2max', 'steigerung', 'tempo'];
+  const schedule = [];
+
+  for (let week = 1; week <= 6; week++) {
+    const weekHours = hours * weekMultipliers[week - 1];
+    const totalMinutes = Math.round(weekHours * 60);
+    const hiMinutesTotal = Math.round(totalMinutes * 0.2);
+    const loMinutesTotal = totalMinutes - hiMinutesTotal;
+    const hiSessions = Math.max(1, Math.round(days * 0.3));
+    const loSessions = days - hiSessions;
+    const hiSessionMinutes = Math.round(hiMinutesTotal / hiSessions);
+    const loSessionMinutes = loSessions > 0 ? Math.round(loMinutesTotal / loSessions) : 0;
+
+    let hiCount = 0;
+    for (let d = 1; d <= days; d++) {
+      const high = hiCount < hiSessions;
+      const type = high ? hiTypes[(week + hiCount) % hiTypes.length] : 'endurance';
+      const base = plans[level][type];
+      const duration = high ? hiSessionMinutes : loSessionMinutes;
+      const blocks = scaleBlocks(base, duration);
+      const tss = computeTss(blocks, ftp);
+
+      if (high) hiCount++;
+
+      schedule.push({
+        week,
+        day: `Week ${week} - Dag ${d}`,
+        title: type.charAt(0).toUpperCase() + type.slice(1),
+        blocks,
+        tss,
+      });
+    }
   }
-  return schema;
+
+  return schedule;
 }
 
 function generateTcxWorkout(title, blocks, ftp) {
@@ -93,37 +226,52 @@ function downloadTcx(title, blocks, ftp) {
 export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
+  // groepeer op week
+  const weeks = [];
+  schema.forEach((session) => {
+    if (!weeks[session.week - 1]) {
+      weeks[session.week - 1] = { sessions: [], tss: 0 };
+    }
+    weeks[session.week - 1].sessions.push(session);
+    weeks[session.week - 1].tss += session.tss;
+  });
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
-        <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
-        <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+    <div className="min-h-screen bg-gradient-to-br from-purple-700 to-black p-6 text-white">
+      <div className="max-w-3xl mx-auto bg-white text-gray-800 shadow rounded-lg p-6 space-y-6">
+        <h1 className="text-3xl font-bold text-purple-700">Trainingsschema</h1>
+        <p className="text-gray-700">
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Uren/week: <strong>{intake.hours}</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
-        <div className="grid gap-4">
-          {schema.map((item, index) => (
-            <div key={index} className="bg-blue-50 p-4 rounded shadow-sm border border-blue-200">
-              <h2 className="text-xl font-semibold text-blue-800">{item.day}</h2>
-              <p className="text-gray-700 mb-2">Trainingsvorm: <strong>{item.title}</strong></p>
-              <ul className="list-disc ml-5 text-gray-600">
-                {item.blocks.map((b, i) => (
-                  <li key={i}>
-                    {b.type === 'interval'
-                      ? `${b.repeats}x ${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt + ${b.rest} min rust @ ${Math.round(intake.ftp * b.restFactor)} watt`
-                      : `${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt (${b.type})`}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
-                className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Download .TCX
-              </button>
+        {weeks.map((week, wIndex) => (
+          <div key={wIndex} className="space-y-4">
+            <h2 className="text-2xl font-semibold text-purple-700">Week {wIndex + 1} – Totale TSS: {Math.round(week.tss)}</h2>
+            <div className="grid gap-4">
+              {week.sessions.map((item, i) => (
+                <div key={i} className="bg-purple-50 p-4 rounded shadow-sm border border-purple-200">
+                  <h3 className="text-lg font-semibold text-purple-800">{item.day.split(' - ')[1]} – {item.title}</h3>
+                  <p className="text-sm text-gray-700 mb-1">TSS: {item.tss}</p>
+                  <ul className="list-disc ml-5 text-gray-700">
+                    {item.blocks.map((b, j) => (
+                      <li key={j}>
+                        {b.type === 'interval'
+                          ? `${b.repeats}x ${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt + ${b.rest} min rust @ ${Math.round(intake.ftp * b.restFactor)} watt`
+                          : `${b.minutes} min @ ${Math.round(intake.ftp * b.factor)} watt (${b.type})`}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
+                    className="mt-2 inline-block bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                  >
+                    Download .TCX
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
 
         <div className="pt-4">
           <label className="block text-gray-700 font-medium mb-1">Update je FTP:</label>

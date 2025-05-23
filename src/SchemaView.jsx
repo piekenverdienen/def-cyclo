@@ -90,6 +90,33 @@ function downloadTcx(title, blocks, ftp) {
   link.click();
 }
 
+function generateFitWorkout(title, blocks, ftp) {
+  const lines = [`# ${title}`];
+  blocks.forEach((b) => {
+    if (b.type === 'interval') {
+      for (let i = 0; i < b.repeats; i++) {
+        lines.push(
+          `${b.minutes}m @ ${Math.round(ftp * b.factor)}w | ${b.rest}m rust @ ${Math.round(
+            ftp * b.restFactor
+          )}w`
+        );
+      }
+    } else {
+      lines.push(`${b.minutes}m @ ${Math.round(ftp * b.factor)}w (${b.type})`);
+    }
+  });
+  return lines.join('\n');
+}
+
+function downloadFit(title, blocks, ftp) {
+  const txt = generateFitWorkout(title, blocks, ftp);
+  const blob = new Blob([txt], { type: 'application/octet-stream' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${title.replace(/\s+/g, '_')}.fit`;
+  link.click();
+}
+
 export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
@@ -98,7 +125,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">
@@ -120,6 +147,12 @@ export default function SchemaView({ intake, onUpdateFtp }) {
                 className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
               >
                 Download .TCX
+              </button>
+              <button
+                onClick={() => downloadFit(item.title, item.blocks, intake.ftp)}
+                className="mt-3 ml-2 inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Download .FIT
               </button>
             </div>
           ))}

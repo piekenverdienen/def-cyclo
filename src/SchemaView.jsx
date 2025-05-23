@@ -1,10 +1,10 @@
 function generateSchema({ level, days, ftp }) {
   const planByLevel = {
-    beginner: [
-      { type: 'warmup', minutes: 10, factor: 0.55 },
-      { type: 'endurance', minutes: 30, factor: 0.65 },
-      { type: 'cooldown', minutes: 5, factor: 0.5 },
-    ],
+      beginner: [
+        { type: 'warmup', minutes: 10, factor: 0.55 },
+        { type: 'endurance', minutes: 30, factor: 0.65 },
+        { type: 'cooldown', minutes: 5, factor: 0.5 },
+      ],
     intermediate: [
       { type: 'warmup', minutes: 10, factor: 0.6 },
       { type: 'interval', minutes: 5, factor: 1.05, repeats: 4, rest: 3, restFactor: 0.6 },
@@ -17,14 +17,17 @@ function generateSchema({ level, days, ftp }) {
     ],
   };
 
+  const weeks = 6;
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < days; d++) {
+      const baseBlocks = planByLevel[level];
+      schema.push({
+        day: `Week ${w + 1} - Dag ${d + 1}`,
+        title: `Training ${w * days + d + 1}`,
+        blocks: baseBlocks,
+      });
+    }
   }
   return schema;
 }
@@ -90,6 +93,29 @@ function downloadTcx(title, blocks, ftp) {
   link.click();
 }
 
+function generateFitWorkout(title) {
+  // Minimal FIT file header (size 14) with dummy CRC. Real files require
+  // a full definition and data messages.
+  const header = new Uint8Array([
+    0x0E, // header size
+    0x10, // protocol version
+    0x00, 0x00, // profile version (little endian)
+    0x00, 0x00, 0x00, 0x00, // data size placeholder
+    0x2E, 0x46, 0x49, 0x54, // ".FIT"
+    0x00, 0x00, // CRC placeholder
+  ]);
+  return header;
+}
+
+function downloadFit(title) {
+  const fit = generateFitWorkout(title);
+  const blob = new Blob([fit], { type: 'application/octet-stream' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${title.replace(/\s+/g, '_')}.fit`;
+  link.click();
+}
+
 export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
@@ -98,7 +124,7 @@ export default function SchemaView({ intake, onUpdateFtp }) {
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">
@@ -117,9 +143,15 @@ export default function SchemaView({ intake, onUpdateFtp }) {
               </ul>
               <button
                 onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
-                className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 mr-2"
               >
                 Download .TCX
+              </button>
+              <button
+                onClick={() => downloadFit(item.title)}
+                className="mt-3 inline-block bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+              >
+                Download .FIT
               </button>
             </div>
           ))}

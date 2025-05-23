@@ -90,15 +90,36 @@ function downloadTcx(title, blocks, ftp) {
   link.click();
 }
 
+function downloadFit(title, blocks, ftp) {
+  const lines = [
+    '# FIT workout placeholder',
+    `Title: ${title}`,
+  ];
+  blocks.forEach((b, i) => {
+    if (b.type === 'interval') {
+      lines.push(
+        `${b.repeats}x ${b.minutes}min @ ${Math.round(ftp * b.factor)}w + ${b.rest}min rust @ ${Math.round(ftp * b.restFactor)}w`
+      );
+    } else {
+      lines.push(`${b.minutes}min @ ${Math.round(ftp * b.factor)}w (${b.type})`);
+    }
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'application/octet-stream' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${title.replace(/\s+/g, '_')}.fit`;
+  link.click();
+}
+
 export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 p-6">
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Email: <strong>{intake.email}</strong> · Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Tijd: <strong>{intake.time}u</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">
@@ -120,6 +141,12 @@ export default function SchemaView({ intake, onUpdateFtp }) {
                 className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
               >
                 Download .TCX
+              </button>
+              <button
+                onClick={() => downloadFit(item.title, item.blocks, intake.ftp)}
+                className="mt-3 ml-2 inline-block bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+              >
+                Download .FIT
               </button>
             </div>
           ))}

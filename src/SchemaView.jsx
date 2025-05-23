@@ -32,53 +32,24 @@ function generateSchema({ level, days, ftp }) {
 function generateTcxWorkout(title, blocks, ftp) {
   const steps = [];
 
-  blocks.forEach((block, index) => {
+  blocks.forEach((block) => {
     if (block.type === 'interval') {
       for (let i = 0; i < block.repeats; i++) {
-        steps.push({
-          name: `Interval ${i + 1}`,
-          duration: block.minutes * 60,
-          power: Math.round(ftp * block.factor),
-        });
-        steps.push({
-          name: `Rust ${i + 1}`,
-          duration: block.rest * 60,
-          power: Math.round(ftp * block.restFactor),
-        });
+        steps.push({ name: `Interval ${i + 1}`, duration: block.minutes * 60, power: Math.round(ftp * block.factor) });
+        steps.push({ name: `Rust ${i + 1}`, duration: block.rest * 60, power: Math.round(ftp * block.restFactor) });
       }
     } else {
-      steps.push({
-        name: block.type.charAt(0).toUpperCase() + block.type.slice(1),
-        duration: block.minutes * 60,
-        power: Math.round(ftp * block.factor),
-      });
+      steps.push({ name: block.type.charAt(0).toUpperCase() + block.type.slice(1), duration: block.minutes * 60, power: Math.round(ftp * block.factor) });
     }
   });
 
-  const xmlSteps = steps.map(
-    (s, i) => `
-      <Step>
-        <Name>${s.name}</Name>
-        <Duration>
-          <DurationType>Time</DurationType>
-          <Seconds>${s.duration}</Seconds>
-        </Duration>
-        <Target>
-          <TargetType>Power</TargetType>
-          <PowerZone>${s.power}</PowerZone>
-        </Target>
-      </Step>`
-  ).join('');
+  const xmlSteps = steps
+    .map(
+      (s) => `\n      <Step>\n        <Name>${s.name}</Name>\n        <Duration>\n          <DurationType>Time</DurationType>\n          <Seconds>${s.duration}</Seconds>\n        </Duration>\n        <Target>\n          <TargetType>Power</TargetType>\n          <PowerZone>${s.power}</PowerZone>\n        </Target>\n      </Step>`
+    )
+    .join('');
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
-  <Workouts>
-    <Workout Sport="Biking">
-      <Name>${title}</Name>
-      ${xmlSteps}
-    </Workout>
-  </Workouts>
-</TrainingCenterDatabase>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">\n  <Workouts>\n    <Workout Sport="Biking">\n      <Name>${title}</Name>${xmlSteps}\n    </Workout>\n  </Workouts>\n</TrainingCenterDatabase>`;
 }
 
 function downloadTcx(title, blocks, ftp) {
@@ -90,15 +61,24 @@ function downloadTcx(title, blocks, ftp) {
   link.click();
 }
 
+function downloadFit(title) {
+  const header = new Uint8Array([14,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+  const blob = new Blob([header], { type: 'application/octet-stream' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${title.replace(/\s+/g, '_')}.fit`;
+  link.click();
+}
+
 export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
-        <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
-        <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+    <div className="min-h-screen bg-gradient-to-b from-purple-700 to-black text-white p-6">
+      <div className="max-w-3xl mx-auto bg-white/80 shadow rounded-lg p-6 space-y-6 text-black">
+        <h1 className="text-3xl font-bold">Trainingsschema</h1>
+        <p className="text-sm">
+          Email: <strong>{intake.email}</strong> · Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Uren/week: <strong>{intake.hours}</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">
@@ -115,18 +95,20 @@ export default function SchemaView({ intake, onUpdateFtp }) {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
-                className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Download .TCX
-              </button>
+              <div className="mt-3 space-x-2">
+                <button onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                  Download .TCX
+                </button>
+                <button onClick={() => downloadFit(item.title)} className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+                  Download .FIT
+                </button>
+              </div>
             </div>
           ))}
         </div>
 
         <div className="pt-4">
-          <label className="block text-gray-700 font-medium mb-1">Update je FTP:</label>
+          <label className="block font-medium mb-1">Update je FTP:</label>
           <input
             type="number"
             className="w-full border border-gray-300 p-2 rounded"

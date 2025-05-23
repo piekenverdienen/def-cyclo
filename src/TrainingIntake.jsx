@@ -4,10 +4,20 @@ export default function TrainingIntake({ onComplete }) {
   const [level, setLevel] = useState('beginner');
   const [days, setDays] = useState(3);
   const [ftp, setFtp] = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const parsedFtp = parseInt(ftp);
+
+    if (!isNaN(parsedFtp) && parsedFtp < 150 && days > 5) {
+      setError(
+        'Deze combinatie van FTP en trainingsdagen lijkt niet realistisch. Pas je waarden aan.'
+      );
+      return;
+    }
+
+    setError('');
     onComplete({ level, days, ftp: isNaN(parsedFtp) ? 200 : parsedFtp });
   };
 
@@ -53,6 +63,12 @@ export default function TrainingIntake({ onComplete }) {
             className="w-full border border-gray-300 p-2 rounded"
           />
         </div>
+
+        {error && (
+          <div className="bg-red-100 text-red-700 p-2 rounded">
+            {error}
+          </div>
+        )}
 
         <button
           type="submit"

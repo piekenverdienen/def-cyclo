@@ -1,13 +1,186 @@
-
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wielren Schema App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trainingsschema</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <div class="container">
+    <form id="step1">
+      <h2 class="text-xl font-bold mb-4">Stap 1: E-mail</h2>
+      <label for="email">E-mailadres</label>
+      <input id="email" type="email" required />
+      <button type="button" id="to-step2">Volgende</button>
+    </form>
+
+    <form id="step2" class="hidden">
+      <h2 class="text-xl font-bold mb-4">Stap 2: Gegevens</h2>
+      <label for="level">Niveau
+        <span class="info-button" id="info-btn">i</span>
+      </label>
+      <div id="info-box">
+        Beginner: weinig ervaring<br />
+        Gevorderd: regelmatige fietser<br />
+        Expert: zeer ervaren renner
+      </div>
+      <select id="level">
+        <option value="beginner">Beginner</option>
+        <option value="intermediate">Gevorderd</option>
+        <option value="advanced">Expert</option>
+      </select>
+
+      <label for="days">Dagen per week</label>
+      <input id="days" type="number" min="1" max="7" value="3" />
+
+      <label for="time">Beschikbare tijd (uur per week)</label>
+      <input id="time" type="number" min="1" value="6" />
+
+      <label for="ftp">FTP (watt)</label>
+      <input id="ftp" type="number" required />
+
+      <label for="weight">Gewicht (kg)</label>
+      <input id="weight" type="number" required />
+      <div id="error" class="text-red-600"></div>
+      <button type="submit">Genereer schema</button>
+    </form>
+
+    <div id="schema" class="hidden"></div>
+  </div>
+
+<script>
+const step1 = document.getElementById('step1');
+const step2 = document.getElementById('step2');
+const schemaDiv = document.getElementById('schema');
+const infoBtn = document.getElementById('info-btn');
+const infoBox = document.getElementById('info-box');
+const errorBox = document.getElementById('error');
+
+infoBtn.addEventListener('click', () => {
+  infoBox.style.display = infoBox.style.display === 'block' ? 'none' : 'block';
+});
+
+document.getElementById('to-step2').addEventListener('click', () => {
+  step1.classList.add('hidden');
+  step2.classList.remove('hidden');
+});
+
+function crc16(arr) {
+  let crc = 0;
+  for (let i = 0; i < arr.length; i++) {
+    crc ^= arr[i];
+    for (let j = 0; j < 8; j++) {
+      const carry = crc & 1;
+      crc >>= 1;
+      if (carry) crc ^= 0xA001;
+    }
+  }
+  return crc;
+}
+
+function createFitBlob(title) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode('Workout: ' + title);
+  const header = new Uint8Array(14);
+  header[0] = 14; // header size
+  header[1] = 0x10; // protocol 1.0
+  header[2] = 0; // profile LSB
+  header[3] = 0; // profile MSB
+  header[4] = data.length & 0xFF;
+  header[5] = (data.length >> 8) & 0xFF;
+  header[6] = (data.length >> 16) & 0xFF;
+  header[7] = (data.length >> 24) & 0xFF;
+  header[8] = 0x2E; header[9] = 0x46; header[10] = 0x49; header[11] = 0x54; // .FIT
+  const crcHeader = crc16(header.subarray(0,12));
+  header[12] = crcHeader & 0xFF;
+  header[13] = (crcHeader >> 8) & 0xFF;
+
+  const file = new Uint8Array(header.length + data.length + 2);
+  file.set(header,0);
+  file.set(data, header.length);
+  const crcData = crc16(data);
+  file[file.length-2] = crcData & 0xFF;
+  file[file.length-1] = (crcData >> 8) & 0xFF;
+  return new Blob([file], {type:'application/octet-stream'});
+}
+
+function downloadFit(title) {
+  const blob = createFitBlob(title);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = title.replace(/\s+/g,'_') + '.fit';
+  link.click();
+}
+
+function generatePlan(intake) {
+  const planByLevel = {
+    beginner: [
+      { type: 'duur', minutes: 30, factor: 0.6 },
+      { type: 'rust', minutes: 5, factor: 0.5 }
+    ],
+    intermediate: [
+      { type: 'interval', minutes: 5, repeats: 4, rest: 3, factor: 1.0, restFactor: 0.6 },
+      { type: 'rust', minutes: 5, factor: 0.5 }
+    ],
+    advanced: [
+      { type: 'interval', minutes: 6, repeats: 5, rest: 3, factor: 1.1, restFactor: 0.6 },
+      { type: 'rust', minutes: 5, factor: 0.5 }
+    ]
+  };
+  const plan = [];
+  for(let w=1; w<=6; w++) {
+    for(let d=1; d<=intake.days; d++) {
+      plan.push({
+        title:`Week ${w} Dag ${d}`,
+        blocks: planByLevel[intake.level]
+      });
+    }
+  }
+  return plan;
+}
+
+step2.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const ftp = parseInt(document.getElementById('ftp').value);
+  const weight = parseFloat(document.getElementById('weight').value);
+  if (weight > 0 && ftp / weight > 5) {
+    errorBox.textContent = 'FTP per kg lijkt erg hoog';
+    return;
+  }
+  errorBox.textContent = '';
+
+  const intake = {
+    email: document.getElementById('email').value,
+    level: document.getElementById('level').value,
+    days: parseInt(document.getElementById('days').value),
+    time: parseInt(document.getElementById('time').value),
+    ftp,
+    weight
+  };
+
+  const schema = generatePlan(intake);
+  step2.classList.add('hidden');
+  schemaDiv.classList.remove('hidden');
+  schemaDiv.innerHTML = `<h2 class="text-xl font-bold mb-4">Schema voor ${intake.email}</h2>`;
+
+  schema.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'schema-item';
+    const list = item.blocks.map(b => {
+      if(b.type === 'interval') {
+        return `${b.repeats}x ${b.minutes}min @ ${Math.round(intake.ftp*b.factor)}W + ${b.rest}min rust`;
+      }
+      return `${b.minutes}min @ ${Math.round(intake.ftp*b.factor)}W (${b.type})`;
+    }).join('<br>');
+    div.innerHTML = `<strong>${item.title}</strong><br>${list}<br>`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Download FIT';
+    btn.addEventListener('click', () => downloadFit(item.title));
+    div.appendChild(btn);
+    schemaDiv.appendChild(div);
+  });
+});
+</script>
+</body>
 </html>

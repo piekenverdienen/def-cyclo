@@ -1,18 +1,17 @@
 
 import React, { useState } from 'react'
-import SchemaView from './SchemaView.jsx'
-import TrainingIntake from './TrainingIntake.jsx'
+import TrainingIntake from './TrainingIntake'
+import SchemaView from './SchemaView'
 import './index.css'
 
 export default function App() {
   const [intake, setIntake] = useState(null)
 
-  const handleUpdateFtp = (newFtp) => {
-    setIntake((prev) => ({ ...prev, ftp: newFtp }))
-  }
-
   return intake ? (
-    <SchemaView intake={intake} onUpdateFtp={handleUpdateFtp} />
+    <SchemaView
+      intake={intake}
+      onUpdateFtp={(newFtp) => setIntake({ ...intake, ftp: newFtp })}
+    />
   ) : (
     <TrainingIntake onComplete={setIntake} />
   )

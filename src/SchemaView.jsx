@@ -18,13 +18,16 @@ function generateSchema({ level, days, ftp }) {
   };
 
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+  const baseBlocks = planByLevel[level];
+  for (let week = 1; week <= 6; week++) {
+    for (let day = 1; day <= days; day++) {
+      const index = (week - 1) * days + day;
+      schema.push({
+        day: `Week ${week} - Dag ${day}`,
+        title: `Trainingsblok ${index}`,
+        blocks: baseBlocks,
+      });
+    }
   }
   return schema;
 }
@@ -90,15 +93,24 @@ function downloadTcx(title, blocks, ftp) {
   link.click();
 }
 
+function downloadFit(title) {
+  const header = new Uint8Array([14, 0, 0, 0, 0, 0, 0, 0, 46, 70, 73, 84, 0]);
+  const blob = new Blob([header], { type: 'application/octet-stream' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${title.replace(/\s+/g, '_')}.fit`;
+  link.click();
+}
+
 export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen p-6">
       <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
         <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
         <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} watt</strong>
         </p>
 
         <div className="grid gap-4">
@@ -115,12 +127,20 @@ export default function SchemaView({ intake, onUpdateFtp }) {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
-                className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Download .TCX
-              </button>
+              <div className="mt-3 space-x-2">
+                <button
+                  onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
+                  className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                >
+                  Download .TCX
+                </button>
+                <button
+                  onClick={() => downloadFit(item.title)}
+                  className="inline-block bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+                >
+                  Download .FIT
+                </button>
+              </div>
             </div>
           ))}
         </div>

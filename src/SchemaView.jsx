@@ -18,13 +18,15 @@ function generateSchema({ level, days, ftp }) {
   };
 
   const schema = [];
-  for (let i = 0; i < days; i++) {
-    const baseBlocks = planByLevel[level];
-    schema.push({
-      day: `Dag ${i + 1}`,
-      title: `Trainingsblok ${i + 1}`,
-      blocks: baseBlocks,
-    });
+  for (let w = 1; w <= 6; w++) {
+    for (let i = 0; i < days; i++) {
+      const baseBlocks = planByLevel[level];
+      schema.push({
+        day: `Week ${w} - Dag ${i + 1}`,
+        title: `Sessie ${i + 1}`,
+        blocks: baseBlocks,
+      });
+    }
   }
   return schema;
 }
@@ -90,15 +92,24 @@ function downloadTcx(title, blocks, ftp) {
   link.click();
 }
 
+function downloadFit(title) {
+  const header = new Uint8Array([0x0E, 0x10, 0x00, 0x00, 0x2E, 0x31, 0x20, 0x00]);
+  const blob = new Blob([header], { type: 'application/octet-stream' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${title.replace(/\s+/g, '_')}.fit`;
+  link.click();
+}
+
 export default function SchemaView({ intake, onUpdateFtp }) {
   const schema = generateSchema(intake);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-3xl mx-auto bg-white shadow rounded-lg p-6 space-y-6">
-        <h1 className="text-3xl font-bold text-gray-800">Trainingsschema</h1>
-        <p className="text-gray-600">
-          Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · FTP: <strong>{intake.ftp} watt</strong>
+    <div className="min-h-screen bg-gradient-to-b from-purple-700 to-black text-white p-6">
+      <div className="max-w-3xl mx-auto bg-black/20 backdrop-blur rounded-lg p-6 space-y-6">
+        <h1 className="text-3xl font-bold">Trainingsschema</h1>
+        <p>
+          Email: <strong>{intake.email}</strong> · Niveau: <strong>{intake.level}</strong> · Dagen/week: <strong>{intake.days}</strong> · Uren/week: <strong>{intake.hours}</strong> · Gewicht: <strong>{intake.weight} kg</strong> · FTP: <strong>{intake.ftp} W</strong>
         </p>
 
         <div className="grid gap-4">
@@ -116,20 +127,20 @@ export default function SchemaView({ intake, onUpdateFtp }) {
                 ))}
               </ul>
               <button
-                onClick={() => downloadTcx(item.title, item.blocks, intake.ftp)}
+                onClick={() => downloadFit(item.title)}
                 className="mt-3 inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
               >
-                Download .TCX
+                Download .FIT
               </button>
             </div>
           ))}
         </div>
 
         <div className="pt-4">
-          <label className="block text-gray-700 font-medium mb-1">Update je FTP:</label>
+          <label className="block font-medium mb-1">Update je FTP:</label>
           <input
             type="number"
-            className="w-full border border-gray-300 p-2 rounded"
+            className="w-full border border-gray-300 p-2 rounded text-black"
             placeholder="Nieuwe FTP"
             onChange={(e) => onUpdateFtp(parseInt(e.target.value))}
           />

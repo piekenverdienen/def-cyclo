@@ -1,3 +1,49 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: linear-gradient(to bottom, #5b2c82, #000);
+  color: #fff;
+}
+.container {
+  max-width: 500px;
+  margin: 2rem auto;
+  background: rgba(0,0,0,0.4);
+  padding: 1rem;
+  border-radius: 8px;
+}
+input, select {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  border-radius: 4px;
+  border: none;
+}
+button {
+  background: #6a0dad;
+  border: none;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+button:hover { background: #833ab4; }
+.week {
+  margin-top: 1rem;
+  background: rgba(255,255,255,0.1);
+  padding: 0.5rem;
+  border-radius: 6px;
+}
+.workout { display:flex; justify-content:space-between; align-items:center; margin-top:0.5rem; }
+.info { cursor:pointer; margin-left:4px; }
+.tooltip {
+  display:none;
+  position:absolute;
+  background:#333;
+  color:#fff;
+  padding:0.5rem;
+  border-radius:4px;
+  width:180px;
+  z-index:10;
+}
+#error { color:red; margin-bottom:0.5rem; }
+
